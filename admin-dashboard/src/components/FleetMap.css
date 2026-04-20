@@ -1,0 +1,257 @@
+.fleet-map-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #020617;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  background: #020617;
+}
+
+/* ─── Custom Markers ────────────────────────────────────────────────────────── */
+.leaflet-marker-icon {
+  background: none;
+  border: none;
+}
+
+.l-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.l-marker-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  z-index: -1;
+}
+
+/* Status-based colors for markers */
+.status-moving .l-marker-ring { background: rgba(16, 185, 129, 0.4); box-shadow: 0 0 20px rgba(16, 185, 129, 0.3); animation: l-pulse-green 2s infinite; }
+.status-moving .l-marker-body { background: #10b981; border-color: #0d1117; }
+
+.status-idle .l-marker-ring { background: rgba(245, 158, 11, 0.3); animation: l-pulse-orange 3s infinite; }
+.status-idle .l-marker-body { background: #f59e0b; border-color: #0d1117; }
+
+.status-offline .l-marker-ring { background: rgba(139, 148, 158, 0.2); }
+.status-offline .l-marker-body { background: #8b949e; border-color: #0d1117; }
+
+@keyframes l-pulse-green {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); transform: translate(-50%, -50%) scale(0.95); }
+  70% { box-shadow: 0 0 0 15px rgba(16, 185, 129, 0); transform: translate(-50%, -50%) scale(1.2); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); transform: translate(-50%, -50%) scale(0.95); }
+}
+
+@keyframes l-pulse-orange {
+  0% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.2; transform: translate(-50%, -50%) scale(1.5); }
+  100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
+}
+
+.l-marker-body {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-premium);
+  position: relative;
+  z-index: 2;
+  transition: all 0.3s ease;
+}
+
+.selected .l-marker-body {
+  transform: scale(1.2);
+  box-shadow: 0 0 25px var(--accent);
+}
+
+.l-marker-initials {
+  color: #000;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.l-marker-label {
+  position: absolute;
+  top: -24px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ─── Popups ───────────────────────────────────────────────────────────────── */
+.leaflet-popup-content-wrapper {
+  background: #ffffff !important;
+  color: #1e293b !important;
+  border-radius: 12px !important;
+  padding: 0 !important;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.15) !important;
+}
+
+.leaflet-popup-tip {
+  background: #ffffff !important;
+}
+
+.l-popup {
+  padding: 12px;
+  min-width: 220px;
+}
+
+.l-popup-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 8px;
+}
+
+.l-popup-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #f59e0b;
+  color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.l-popup-name {
+  font-weight: 700;
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.l-popup-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.l-popup-status.moving { background: #10b981; color: #fff; }
+.l-popup-status.idle { background: #f59e0b; color: #fff; }
+.l-popup-status.offline { background: #64748b; color: #fff; }
+
+.l-popup-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.l-popup-stat {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #334155;
+  margin-bottom: 4px;
+}
+
+.l-popup-label {
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* ─── Map Controls ─────────────────────────────────────────────────────────── */
+.map-controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.map-btn {
+  width: 40px;
+  height: 40px;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.map-btn:hover {
+  background: #334155;
+  transform: translateY(-2px);
+}
+
+.map-btn.active {
+  background: #f59e0b;
+  color: #000;
+  border-color: #f59e0b;
+  box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
+}
+
+/* ─── Target Waypoints ────────────────────────────────────────────────────── */
+.target-marker-icon {
+  z-index: 500 !important;
+}
+
+.target-flag {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.target-cloth {
+  font-size: 24px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+  animation: wave-flag 2s ease-in-out infinite;
+}
+
+.target-pole {
+  width: 2px;
+  height: 10px;
+  background: #cbd5e1;
+  box-shadow: 1px 0 2px rgba(0,0,0,0.3);
+}
+
+@keyframes wave-flag {
+  0%, 100% { transform: translateY(0) rotate(5deg); }
+  50% { transform: translateY(-3px) rotate(-5deg); }
+}
+
+.l-popup-target {
+  margin-top: 8px;
+  padding: 6px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  font-size: 11px;
+  color: #166534;
+  font-weight: 700;
+  text-align: center;
+}
