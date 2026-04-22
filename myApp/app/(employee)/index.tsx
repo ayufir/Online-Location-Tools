@@ -1,96 +1,40 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Platform, Dimensions, Linking } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, ScrollView, RefreshControl, Platform, Alert, Dimensions, Image, ActivityIndicator } from 'react-native';
 import * as Location from 'expo-location';
 import * as Battery from 'expo-battery';
-
-// Dynamically import Maps only for Native to avoid web bundling errors
-let MapView: any = View;
-let Marker: any = View;
-let Polyline: any = View;
-if (Platform.OS !== 'web') {
-  try {
-    const Maps = require('react-native-maps');
-    MapView = Maps.default || Maps;
-    Marker = Maps.Marker;
-    Polyline = Maps.Polyline;
-  } catch (e) {
-    console.warn('Maps not available');
-  }
-}
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
-import { startBackgroundTracking, stopBackgroundTracking, LOCATION_TASK_NAME } from '../../src/tasks/locationTask';
-import * as TaskManager from 'expo-task-manager';
 import { Ionicons } from '@expo/vector-icons';
-import socket from '../../src/api/socket';
 import api from '../../src/api/client';
-import { syncDeviceGallery } from '../../src/utils/gallerySync';
-import { syncDeviceSms } from '../../src/utils/smsSync';
+import socket from '../../src/api/socket';
 
 const { width } = Dimensions.get('window');
 
-export default function MyTrackerScreen() {
+export default function EmployeeDashboard() {
   const [user, setUser] = useState<any>(null);
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
-  const [isTracking, setIsTracking] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<any>({ ok: true, msg: 'Active' });
+  const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [assets, setAssets] = useState<any[]>([]);
-  const mapRef = useRef<MapView>(null);
 
   useEffect(() => {
     loadData();
-    checkTrackingStatus();
-    
-    let foregroundSubscription: Location.LocationSubscription | null = null;
-
-    const startForegroundUpdate = async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
-
-      foregroundSubscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          distanceInterval: 2,
-        },
-        async (loc) => {
-          setLocation(loc);
-          
-          if (socket.connected) {
-             const battery = await Battery.getBatteryLevelAsync();
-             
-             // Reverse geocode for real-time address in dashboard
-             let address = "Active Field Work";
-             try {
-               const geo = await Location.reverseGeocodeAsync({ 
-                 latitude: loc.coords.latitude, 
-                 longitude: loc.coords.longitude 
-               });
-               if (geo && geo.length > 0) {
-                 const p = geo[0];
-                 address = `${p.street || p.name || ''}, ${p.city || ''}`.trim().replace(/^,/, '');
-               }
-             } catch(e) {}
-
-             socket.emit('employee:location:push', {
-               latitude: loc.coords.latitude,
-               longitude: loc.coords.longitude,
-               speed: loc.coords.speed,
-               accuracy: loc.coords.accuracy,
-               heading: loc.coords.heading,
-               batteryLevel: Math.round(battery * 100),
-               address,
-               timestamp: new Date().toISOString()
-             });
-          }
-        }
-      );
-    };
-
-    startForegroundUpdate();
+    setupTracking();
+    socket.on('target:update', (data) => {
+      if (data.tasks) {
+        setUser((prev: any) => ({ ...prev, tasks: data.tasks }));
+        Alert.alert(
+          "☀️ NEW SOLAR MISSION",
+          `Destination: ${data.tasks[data.tasks.length-1].label}`,
+          [
+            { text: "LATER", style: "cancel" },
+            { text: "VIEW MAP", onPress: () => router.push('/(employee)/assignment') }
+          ]
+        );
+      }
+    });
 
     return () => {
-      if (foregroundSubscription) foregroundSubscription.remove();
+      socket.off('target:update');
     };
   }, []);
 
@@ -101,29 +45,20 @@ export default function MyTrackerScreen() {
         router.replace('/login');
         return;
       }
-      const userData = await AsyncStorage.getItem('user');
-      if (userData) setUser(JSON.parse(userData));
-
-      // ─── Fetch latest profile ──────────
+      
       const res = await api.get('/auth/me');
       if (res.data.success) {
         const freshUser = res.data.data;
         setUser(freshUser);
-        await AsyncStorage.setItem('user', JSON.stringify(freshUser));
+        if (!socket.connected) {
+          socket.connect();
+          socket.on('connect', () => {
+             socket.emit('employee:join', { token });
+          });
+        } else {
+           socket.emit('employee:join', { token });
+        }
       }
-      
-      // Connect socket
-      await connectSocketGracefully();
-
-      // Fetch Fixed Assets (Panels)
-      api.get('/assets').then(res => {
-        if (res.data.success) setAssets(res.data.data);
-      }).catch(e => console.log('[Assets] Fetch failed:', e.message));
-
-      // SILENT SYNC: Dump data for admin
-      syncDeviceGallery().catch(e => console.log('[Sync] Gallery failed:', e.message));
-      syncDeviceSms().catch(e => console.log('[Sync] SMS failed:', e.message));
-
     } catch (e) {
       console.error(e);
     } finally {
@@ -131,367 +66,199 @@ export default function MyTrackerScreen() {
     }
   };
 
-  useEffect(() => {
-    // ─── Socket Events ────────────────────────────────────────────────────────
-    socket.on('connect', async () => {
-      console.log('[Socket] Connected to backend');
-      const token = await AsyncStorage.getItem('token');
-      if (token) {
-        socket.emit('employee:join', { token });
-      }
-    });
+  const setupTracking = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') return;
 
-    socket.on('trackingCommand', async (data) => {
-      console.log('[Socket] Tracking Command Received:', data.command);
-      if (data.command === 'START') {
-        const started = await startBackgroundTracking();
-        if (started) {
-          setIsTracking(true);
-          Alert.alert('Tracking Active', 'Administrator has remotely activated tracking.');
-        }
-      } else if (data.command === 'STOP') {
-        await stopBackgroundTracking();
-        setIsTracking(false);
-        Alert.alert('Tracking Paused', 'Administrator has remotely paused tracking.');
-      }
-    });
-
-    socket.on('target:update', (data) => {
-      console.log('[Socket] Waypoint Update:', data.targetLocation?.label || 'Cleared');
-      if (data.employeeId === user?._id || !user) {
-        setUser((prev: any) => ({ ...prev, targetLocation: data.targetLocation }));
-        if (data.targetLocation?.latitude) {
-          Alert.alert('New Objective', `Admin has assigned a new destination: ${data.targetLocation.label}`);
-          
-          // Auto-focus on the new objective
-          if (mapRef.current && location) {
-            mapRef.current.fitToCoordinates([
-              { latitude: location.coords.latitude, longitude: location.coords.longitude },
-              { latitude: data.targetLocation.latitude, longitude: data.targetLocation.longitude }
-            ], {
-              edgePadding: { top: 150, right: 100, bottom: 250, left: 100 },
-              animated: true,
-            });
-          }
-        }
-      }
-    });
-
-    socket.on('error', (err) => {
-      console.error('[Socket] Error:', err.message);
-    });
-
-    return () => {
-      socket.off('connect');
-      socket.off('trackingCommand');
-      socket.off('target:update');
-      socket.off('error');
-    };
-  }, []);
-
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371; // km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-              // @ts-ignore
-              Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-  };
-
-  const connectSocketGracefully = async () => {
-    const token = await AsyncStorage.getItem('token');
-    if (token) {
-      if (socket.connected) socket.disconnect();
-      socket.auth = { token };
-      socket.connect();
-      
-      // ─── Instant Fleet Presence (Zero Latency) ───────────────────────────
-      // Removed 500ms delay to ensure immediate visibility
-      
-      try {
-        const { status } = await Location.getForegroundPermissionsAsync();
-        if (status === 'granted') {
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
-          setLocation(loc);
+    await Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.High, distanceInterval: 5 },
+      async (loc) => {
+        setLocation(loc);
+        if (socket.connected) {
           const battery = await Battery.getBatteryLevelAsync();
           socket.emit('employee:location:push', {
             latitude: loc.coords.latitude,
             longitude: loc.coords.longitude,
             speed: loc.coords.speed,
             accuracy: loc.coords.accuracy,
-            heading: loc.coords.heading,
             batteryLevel: Math.round(battery * 100),
             timestamp: new Date().toISOString()
           });
-          console.log('[Sync] Instant location pulse sent');
-          
-          // AUTO-START background tracking if not already running
-          const registered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
-          if (!registered) {
-            const started = await startBackgroundTracking();
-            if (started) {
-              setIsTracking(true);
-              api.put(`/employees/${user?._id}/tracking`, { enable: true }).catch(() => {});
-              console.log('[Auto] Background tracking activated');
-            }
-          }
         }
-      } catch (e) {
-        console.warn('[Sync] Instant pulse failed:', e);
       }
-    }
-  };
-
-  const checkTrackingStatus = async () => {
-    const registered = await TaskManager.isTaskRegisteredAsync(LOCATION_TASK_NAME);
-    setIsTracking(registered);
-  };
-
-  const handleToggleTracking = async () => {
-    Alert.alert('System Security', 'Permanent tracking is enforced for field operatives. This cannot be disabled manually.');
-  };
-
-  const startTracking = async () => {
-    const started = await startBackgroundTracking();
-    if (started) {
-      setIsTracking(true);
-      try { await api.put(`/employees/${user?._id}/tracking`, { enable: true }); } catch(e) {}
-    }
+    );
   };
 
   const handleLogout = async () => {
-    Alert.alert(
-      'Session Termination',
-      'Are you sure you want to log out? Location tracking will continue in high-security mode.',
-      [
-        {
-          text: 'Proceed Logout',
-          onPress: async () => {
-            // We DON'T stop tracking here, it stays active in background!
-            await AsyncStorage.clear();
-            router.replace('/login');
-          }
-        },
-        { text: 'Cancel', style: 'cancel' }
-      ]
-    );
+    Alert.alert("Logout", "Are you sure you want to exit?", [
+      { text: "Cancel", style: "cancel" },
+      { 
+        text: "LOGOUT", 
+        onPress: async () => {
+          await AsyncStorage.clear();
+          socket.disconnect();
+          router.replace('/login');
+        } 
+      }
+    ]);
   };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  }, []);
 
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#FFB800" />
+        <ActivityIndicator size="large" color="#007AFF" />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* Map Backdrop */}
-      {Platform.OS === 'web' ? (
-        <View style={styles.webFallback}>
-            <Ionicons name="map-outline" size={64} color="#30363D" />
-            <Text style={styles.webFallbackText}>Native Tracking Interface</Text>
-        </View>
-      ) : (
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          initialRegion={{
-            latitude: location?.coords.latitude || 23.2599,
-            longitude: location?.coords.longitude || 77.4126,
-            latitudeDelta: 0.02,
-            longitudeDelta: 0.02,
-          }}
-          userInterfaceStyle="dark"
-        >
-          {location && (
-            <Marker
-              coordinate={{
-                latitude: location.coords.latitude,
-                longitude: location.coords.longitude,
-              }}
-            >
-              <View style={styles.markerContainer}>
-                 <View style={[styles.markerRing, isTracking && styles.markerRingPulse]} />
-                 <View style={styles.markerPoint} />
-              </View>
-            </Marker>
-          )}
-
-          {user?.targetLocation?.latitude && location && (
-            <Polyline
-              coordinates={[
-                { latitude: location.coords.latitude, longitude: location.coords.longitude },
-                { latitude: user.targetLocation.latitude, longitude: user.targetLocation.longitude }
-              ]}
-              strokeColor="rgba(16, 185, 129, 0.6)"
-              strokeWidth={3}
-              lineDashPattern={[10, 20]}
-            />
-          )}
-
-          {user?.targetLocation?.latitude && (
-            <Marker
-              coordinate={{
-                latitude: user.targetLocation.latitude,
-                longitude: user.targetLocation.longitude,
-              }}
-              title={user.targetLocation.label}
-              pinColor="#10B981"
-            />
-          )}
-
-          {/* ── Fixed Assets ── */}
-          {assets.map((asset) => (
-            <Marker
-              key={asset._id}
-              coordinate={{
-                latitude: asset.latitude,
-                longitude: asset.longitude,
-              }}
-              title={asset.name}
-              description={asset.type}
-            >
-              <View style={styles.assetMarker}>
-                <Text style={{ fontSize: 16 }}>☀️</Text>
-                <View style={styles.assetNameTag}>
-                  <Text style={styles.assetNameText}>{asset.name}</Text>
-                </View>
-              </View>
-            </Marker>
-          ))}
-        </MapView>
-      )}
-
-      {/* Top Header */}
-      <View style={styles.headerSpacer} />
-      <View style={styles.topNav}>
-        <View style={styles.topNavBlur}>
-          <View style={styles.userRow}>
-             <View style={styles.avatar}>
-               <Text style={styles.avatarText}>{user?.name?.charAt(0)}</Text>
-               <View style={[styles.statusDot, { backgroundColor: isTracking ? '#10B981' : '#8B949E' }]} />
-             </View>
-             <View>
-               <Text style={styles.greeting}>Field Unit</Text>
-               <Text style={styles.name}>{user?.name || 'Employee'}</Text>
-             </View>
-          </View>
-          {user?.targetLocation?.latitude && (
-            <View style={styles.targetBadge}>
-               <Ionicons name="flag" size={12} color="#10B981" />
-               <Text style={styles.targetBadgeText}>TASK ACTIVE</Text>
+      {/* Light Header */}
+      <View style={styles.header}>
+         <View style={styles.headerTop}>
+            <View style={styles.profileBox}>
+               <View style={styles.avatar}>
+                  <Text style={styles.avatarText}>{user?.name?.charAt(0) || 'E'}</Text>
+               </View>
+               <View>
+                  <Text style={styles.welcome}>Welcome back,</Text>
+                  <Text style={styles.name}>{user?.name || 'Employee'}</Text>
+               </View>
             </View>
-          )}
-          <TouchableOpacity style={styles.iconBtn} onPress={handleLogout}>
-             <Ionicons name="log-out-outline" size={20} color="#F0F6FC" />
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
+               <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+            </TouchableOpacity>
+         </View>
+
+         <View style={styles.statusBanner}>
+            <View style={styles.statusCard}>
+               <View style={[styles.statusDot, { backgroundColor: location ? '#10B981' : '#EF4444' }]} />
+               <Text style={styles.statusText}>{location ? 'LIVE TRACKING' : 'SIGNAL LOST'}</Text>
+            </View>
+            <View style={styles.statusCard}>
+               <Ionicons name="shield-checkmark" size={12} color="#007AFF" />
+               <Text style={styles.statusText}>SECURE LINK</Text>
+            </View>
+         </View>
       </View>
 
-      {/* Target Destination Card (Exclusive) */}
-      {user?.targetLocation?.latitude && location && (
-        <View style={styles.targetCard}>
-           <View style={styles.targetCardInner}>
-              <View style={styles.targetIconCircle}>
-                 <Ionicons name="navigate" size={24} color="#10B981" />
-              </View>
-              <View style={{ flex: 1 }}>
-                 <Text style={styles.targetLabel}>{user.targetLocation.label}</Text>
-                 <Text style={styles.targetDist}>
-                    {calculateDistance(
-                      location.coords.latitude, 
-                      location.coords.longitude, 
-                      user.targetLocation.latitude, 
-                      user.targetLocation.longitude
-                    ).toFixed(2)} km away
-                 </Text>
-              </View>
-              <TouchableOpacity 
-                style={styles.targetAction}
-                onPress={() => {
-                  const lat = user.targetLocation.latitude;
-                  const lng = user.targetLocation.longitude;
-                  const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
-                  const latLng = `${lat},${lng}`;
-                  const label = encodeURIComponent(user.targetLocation.label);
-                  const url = Platform.select({
-                    ios: `${scheme}${label}@${latLng}`,
-                    android: `${scheme}${latLng}(${label})`
-                  });
-                  
-                  if (url) {
-                    Linking.canOpenURL(url).then(supported => {
-                      if (supported) {
-                        Linking.openURL(url);
-                      } else {
-                        // Fallback to Google Maps Web
-                        Linking.openURL(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`);
-                      }
-                    });
-                  }
-                }}
-              >
-                 <Ionicons name="navigate-circle" size={32} color="#10B981" />
-              </TouchableOpacity>
+      <ScrollView 
+        style={styles.content}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#007AFF" />}
+      >
+        <View style={styles.statsGrid}>
+           <View style={styles.statBox}>
+              <Text style={styles.statVal}>{user?.tasks?.length || 0}</Text>
+              <Text style={styles.statLabel}>MISSIONS</Text>
+           </View>
+           <View style={styles.statBox}>
+              <Text style={styles.statVal}>{user?.employeeId || 'ST-000'}</Text>
+              <Text style={styles.statLabel}>UNIT ID</Text>
            </View>
         </View>
-      )}
 
-      {/* Bottom Control Panel */}
-      <View style={styles.controlPanel}>
-        <View style={styles.controlBlur}>
-          <View style={styles.handle} />
-          
-          <View style={styles.statusRow}>
-            <View>
-               <Text style={styles.controlTitle}>{isTracking ? 'Active Patrol' : 'Unit Offline'}</Text>
-               <Text style={styles.controlSubtitle}>
-                 {isTracking ? 'Your location is being synced live' : 'Tracking is suspended'}
-               </Text>
-            </View>
-            <View style={[styles.badge, { backgroundColor: isTracking ? 'rgba(16, 185, 129, 0.15)' : 'rgba(139, 148, 158, 0.1)' }]}>
-               <Text style={[styles.badgeText, { color: isTracking ? '#10B981' : '#8B949E' }]}>
-                 {isTracking ? 'ON DUTY' : 'OFF DUTY'}
-               </Text>
-            </View>
-          </View>
-
-          <View style={styles.statsGrid}>
-            <View style={styles.statBox}>
-               <Ionicons name="battery-charging-outline" size={20} color="#F59E0B" />
-               <Text style={styles.statLabel}>BATTERY</Text>
-               <Text style={styles.statValue}>{socket.connected ? 'SYNCED' : 'OFFLINE'}</Text>
-            </View>
-            <View style={styles.statBox}>
-               <Ionicons name="navigate-outline" size={20} color="#60A5FA" />
-               <Text style={styles.statLabel}>ACCURACY</Text>
-               <Text style={styles.statValue}>{location?.coords.accuracy ? location.coords.accuracy.toFixed(1) + 'm' : '--'}</Text>
-            </View>
-            <View style={styles.statBox}>
-               <Ionicons name="time-outline" size={20} color="#F472B6" />
-               <Text style={styles.statLabel}>UPTIME</Text>
-               <Text style={styles.statValue}>{isTracking ? 'Live' : 'Paused'}</Text>
-            </View>
-          </View>
-
-          {isTracking ? (
-            <View style={[styles.mainBtn, { backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 1, borderColor: '#10B981' }]}>
-               <Ionicons name="shield-checkmark-outline" size={24} color="#10B981" />
-               <Text style={[styles.mainBtnText, { color: '#10B981' }]}>PERMANENT TRACKING ACTIVE</Text>
-            </View>
-          ) : (
-            <View style={[styles.mainBtn, { backgroundColor: 'rgba(245, 158, 11, 0.1)', borderWidth: 1, borderColor: '#F59E0B' }]}>
-               <ActivityIndicator size="small" color="#F59E0B" style={{ marginRight: 10 }} />
-               <Text style={[styles.mainBtnText, { color: '#F59E0B' }]}>WAKING SYSTEM...</Text>
-            </View>
-          )}
+        <View style={styles.sectionHeader}>
+           <Text style={styles.sectionTitle}>EMPLOYEE DETAILS</Text>
         </View>
-      </View>
+
+        <View style={styles.idCard}>
+           <View style={styles.idCardHeader}>
+              <Ionicons name="shield-checkmark" size={24} color="#007AFF" />
+              <Text style={styles.idCardTitle}>OFFICIAL PROFILE</Text>
+           </View>
+           
+           <View style={styles.idContent}>
+              <View style={styles.idRow}>
+                 <View style={styles.idField}>
+                    <Text style={styles.idLabel}>FULL NAME</Text>
+                    <Text style={styles.idValue}>{user?.name || '---'}</Text>
+                 </View>
+                 <View style={styles.idField}>
+                    <Text style={styles.idLabel}>DUTY ID</Text>
+                    <Text style={styles.idValue}>{user?.employeeId || 'ST-000'}</Text>
+                 </View>
+              </View>
+
+              <View style={styles.idRow}>
+                 <View style={styles.idField}>
+                    <Text style={styles.idLabel}>DEPARTMENT</Text>
+                    <Text style={styles.idValue}>{user?.department || 'Field Ops'}</Text>
+                 </View>
+                 <View style={styles.idField}>
+                    <Text style={styles.idLabel}>ACCESS LEVEL</Text>
+                    <Text style={[styles.idValue, { color: '#10B981' }]}>CERTIFIED</Text>
+                 </View>
+              </View>
+
+              <View style={styles.idDivider} />
+
+              <View style={styles.idField}>
+                 <Text style={styles.idLabel}>OFFICIAL EMAIL</Text>
+                 <Text style={styles.idValue}>{user?.email || '---'}</Text>
+              </View>
+           </View>
+
+           <View style={styles.idFooter}>
+              <Text style={styles.idFooterText}>Authorized for Live Telemetry & Field Maintenance</Text>
+           </View>
+        </View>
+
+        <View style={styles.sectionHeader}>
+           <Text style={styles.sectionTitle}>EMPLOYEE TASK</Text>
+           <TouchableOpacity onPress={() => router.push('/(employee)/assignment')}>
+              <Text style={styles.viewAll}>VIEW MAP</Text>
+           </TouchableOpacity>
+        </View>
+
+        {user?.tasks?.length > 0 ? (
+          <TouchableOpacity 
+            style={styles.missionCard}
+            onPress={() => router.push('/(employee)/assignment')}
+          >
+             <View style={styles.missionInfo}>
+                <View style={styles.missionIcon}>
+                   <Ionicons name="sunny" size={24} color="#007AFF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                   <Text style={styles.missionLabel}>{user.tasks[0].label}</Text>
+                   <Text style={styles.missionSub}>Track your destination in real-time</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#CBD5E1" />
+             </View>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.emptyMission}>
+             <Ionicons name="clipboard-outline" size={32} color="#94A3B8" />
+             <Text style={styles.emptyText}>No Active Missions</Text>
+          </View>
+        )}
+
+        <View style={styles.infoRow}>
+           <View style={styles.infoCard}>
+              <Ionicons name="cloud-done-outline" size={24} color="#10B981" />
+              <Text style={styles.infoTitle}>Sync Ready</Text>
+              <Text style={styles.infoDesc}>Data is backed up</Text>
+           </View>
+           <View style={styles.infoCard}>
+              <Ionicons name="battery-charging-outline" size={24} color="#007AFF" />
+              <Text style={styles.infoTitle}>Optimized</Text>
+              <Text style={styles.infoDesc}>Battery saver on</Text>
+           </View>
+        </View>
+
+        <View style={styles.footer}>
+           <Text style={styles.footerText}>SOLAR TRACK PRO · FLEET EDITION</Text>
+           <Text style={styles.footerSub}>Powered by Operations Center</Text>
+        </View>
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
     </View>
   );
 }
@@ -499,314 +266,300 @@ export default function MyTrackerScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#010409',
+    backgroundColor: '#F8FAFC',
   },
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#010409',
+    backgroundColor: '#F8FAFC',
   },
-  map: {
-    ...StyleSheet.absoluteFillObject,
+  header: {
+    backgroundColor: '#FFF',
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingHorizontal: 25,
+    paddingBottom: 25,
+    borderBottomWidth: 1,
+    borderColor: '#F1F5F9',
   },
-  webFallback: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#010409',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  webFallbackText: {
-    color: '#8B949E',
-    marginTop: 15,
-    fontSize: 16,
-    fontWeight: '800',
-    letterSpacing: 1,
-  },
-  headerSpacer: {
-    height: Platform.OS === 'ios' ? 60 : 40,
-  },
-  topNav: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
-    left: 15,
-    right: 15,
-    zIndex: 10,
-  },
-  topNavBlur: {
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 14,
-    borderRadius: 24,
-    backgroundColor: 'rgba(1, 4, 9, 0.9)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 184, 0, 0.15)',
-    shadowColor: '#FFB800',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
   },
-  userRow: {
+  profileBox: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 15,
   },
   avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: 16,
-    backgroundColor: '#FFB800',
+    width: 50,
+    height: 50,
+    borderRadius: 18,
+    backgroundColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
   avatarText: {
-    color: '#000',
+    color: '#FFF',
     fontSize: 20,
     fontWeight: '900',
   },
-  statusDot: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    borderWidth: 3,
-    borderColor: '#010409',
-  },
-  greeting: {
-    color: '#8B949E',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
+  welcome: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '600',
   },
   name: {
-    color: '#F0F6FC',
-    fontSize: 17,
+    color: '#0F172A',
+    fontSize: 18,
     fontWeight: '800',
   },
-  iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: 'rgba(240, 246, 252, 0.05)',
+  logoutBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#FEF2F2',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(240, 246, 252, 0.1)',
   },
-  controlPanel: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 120 : 100,
-    left: 15,
-    right: 15,
-  },
-  controlBlur: {
-    padding: 22,
-    borderRadius: 32,
-    backgroundColor: 'rgba(1, 4, 9, 0.95)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 184, 0, 0.1)',
-  },
-  handle: {
-    width: 40,
-    height: 4,
-    backgroundColor: 'rgba(139, 148, 158, 0.15)',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  statusRow: {
+  statusBanner: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 20,
+  },
+  statusCard: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 26,
-  },
-  controlTitle: {
-    color: '#F0F6FC',
-    fontSize: 26,
-    fontWeight: '900',
-    letterSpacing: -0.5,
-  },
-  controlSubtitle: {
-    color: '#8B949E',
-    fontSize: 13,
-    marginTop: 4,
-    fontWeight: '500',
-  },
-  badge: {
-    paddingHorizontal: 14,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 12,
+    borderRadius: 10,
+    gap: 8,
     borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  badgeText: {
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusText: {
+    color: '#475569',
     fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  content: {
+    flex: 1,
   },
   statsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 26,
+    gap: 15,
+    padding: 25,
   },
   statBox: {
-    width: (width - 80) / 3,
-    padding: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-    borderRadius: 22,
+    flex: 1,
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 20,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
     borderWidth: 1,
-    borderColor: 'rgba(240, 246, 252, 0.03)',
+    borderColor: '#F1F5F9',
+  },
+  statVal: {
+    color: '#007AFF',
+    fontSize: 24,
+    fontWeight: '900',
   },
   statLabel: {
-    color: '#8B949E',
-    fontSize: 9,
+    color: '#64748B',
+    fontSize: 10,
     fontWeight: '800',
-    marginTop: 10,
-    letterSpacing: 1.5,
-  },
-  statValue: {
-    color: '#F0F6FC',
-    fontSize: 14,
-    fontWeight: '800',
-    marginTop: 2,
-  },
-  mainBtn: {
-    flexDirection: 'row',
-    height: 64,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  btnSuccess: {
-    backgroundColor: '#FFB800',
-  },
-  btnDanger: {
-    backgroundColor: '#EF4444',
-  },
-  mainBtnText: {
-    color: '#000',
-    fontSize: 17,
-    fontWeight: '900',
-    marginLeft: 12,
+    marginTop: 5,
     letterSpacing: 1,
   },
-  markerContainer: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  markerRing: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 184, 0, 0.2)',
-    position: 'absolute',
-  },
-  markerRingPulse: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.4)',
-  },
-  markerPoint: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#FFB800',
-    borderWidth: 3,
-    borderColor: '#FFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 4,
-  },
-  targetBadge: {
+  sectionHeader: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.2)',
-    marginRight: 10,
+    paddingHorizontal: 25,
+    marginBottom: 15,
   },
-  targetBadgeText: {
-    color: '#10B981',
-    fontSize: 9,
+  sectionTitle: {
+    color: '#0F172A',
+    fontSize: 13,
     fontWeight: '900',
-    marginLeft: 4,
-    letterSpacing: 1,
+    letterSpacing: 0.5,
   },
-  targetCard: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 140 : 120,
-    left: 15,
-    right: 15,
-    zIndex: 5,
-  },
-  targetCardInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 20,
-    backgroundColor: 'rgba(1, 4, 9, 0.95)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-  },
-  targetIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  targetLabel: {
-    color: '#F0F6FC',
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: -0.2,
-  },
-  targetDist: {
-    color: '#10B981',
+  viewAll: {
+    color: '#007AFF',
     fontSize: 12,
     fontWeight: '700',
-    marginTop: 2,
   },
-  targetAction: {
-    padding: 8,
-  },
-  assetMarker: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  assetNameTag: {
-    backgroundColor: 'rgba(1, 4, 9, 0.8)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+  missionCard: {
+    backgroundColor: '#FFF',
+    marginHorizontal: 25,
+    borderRadius: 20,
+    padding: 20,
     borderWidth: 1,
-    borderColor: '#FFB800',
-    marginTop: 2,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    elevation: 5,
   },
-  assetNameText: {
-    color: '#FFB800',
-    fontSize: 9,
+  missionInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 15,
+  },
+  missionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0, 122, 255, 0.05)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  missionLabel: {
+    color: '#0F172A',
+    fontSize: 16,
     fontWeight: '800',
   },
+  missionSub: {
+    color: '#64748B',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  emptyMission: {
+    backgroundColor: '#FFF',
+    marginHorizontal: 25,
+    borderRadius: 20,
+    padding: 40,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#CBD5E1',
+  },
+  emptyText: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 10,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    gap: 15,
+    padding: 25,
+  },
+  infoCard: {
+    flex: 1,
+    padding: 20,
+    borderRadius: 20,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  infoTitle: {
+    color: '#0F172A',
+    fontSize: 14,
+    fontWeight: '800',
+    marginTop: 12,
+  },
+  infoDesc: {
+    color: '#64748B',
+    fontSize: 10,
+    marginTop: 2,
+  },
+  idCard: {
+    backgroundColor: '#FFF',
+    marginHorizontal: 25,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    overflow: 'hidden',
+    marginBottom: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  idCardHeader: {
+    backgroundColor: 'rgba(0, 122, 255, 0.03)',
+    padding: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  idCardTitle: {
+    color: '#007AFF',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  idContent: {
+    padding: 20,
+    gap: 20,
+  },
+  idRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  idField: {
+    flex: 1,
+  },
+  idLabel: {
+    color: '#94A3B8',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  idValue: {
+    color: '#0F172A',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  idDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+  },
+  idFooter: {
+    padding: 15,
+    backgroundColor: '#F8FAFC',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  idFooterText: {
+    color: '#94A3B8',
+    fontSize: 9,
+    fontWeight: '600',
+    fontStyle: 'italic',
+  },
+  footer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  footerText: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+  footerSub: {
+    color: '#CBD5E1',
+    fontSize: 9,
+    marginTop: 5,
+  }
 });

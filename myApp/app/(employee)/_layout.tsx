@@ -23,9 +23,9 @@ export default function EmployeeLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: 'rgba(1, 4, 9, 0.9)',
+          backgroundColor: '#FFF',
           borderTopWidth: 1,
-          borderTopColor: 'rgba(255, 184, 0, 0.1)',
+          borderTopColor: '#F1F5F9',
           height: Platform.OS === 'ios' ? 90 : 70,
           paddingTop: 10,
           paddingBottom: Platform.OS === 'ios' ? 30 : 12,
@@ -36,16 +36,16 @@ export default function EmployeeLayout() {
           borderRadius: 24,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.3,
+          shadowOpacity: 0.1,
           shadowRadius: 20,
           elevation: 10,
         },
-        tabBarActiveTintColor: '#FFB800',
-        tabBarInactiveTintColor: '#484F58',
+        tabBarActiveTintColor: '#007AFF',
+        tabBarInactiveTintColor: '#94A3B8',
         tabBarLabelStyle: {
           fontSize: 9,
           fontWeight: '900',
-          letterSpacing: 2,
+          letterSpacing: 1,
           marginBottom: 4,
           textTransform: 'uppercase',
         },
@@ -66,6 +66,24 @@ export default function EmployeeLayout() {
           title: 'TEAM FLEET',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="people-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="assets"
+        options={{
+          title: 'SOLAR GRID',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="sunny-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="assignment"
+        options={{
+          title: 'MY TASK',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="navigate-outline" size={size} color={color} />
           ),
         }}
       />

@@ -111,7 +111,7 @@ exports.updateLocation = async (req, res) => {
         status,
         batteryLevel: batteryLevel || null,
         location: { latitude, longitude, accuracy, speed, heading, altitude, address, timestamp: now },
-        targetLocation: employee.targetLocation,
+        tasks: employee.tasks,
         sessionDistance: session.totalDistance,
         timestamp: now.toISOString(),
       };
@@ -150,7 +150,7 @@ exports.getHistory = async (req, res) => {
 exports.getLiveAll = async (req, res) => {
   try {
     const employees = await User.find({ role: 'employee' })
-      .select('name employeeId department designation status isTrackingEnabled currentLocation lastSeen batteryLevel targetLocation lastConnectedAt lastDisconnectedAt');
+      .select('name employeeId department designation status isTrackingEnabled currentLocation lastSeen batteryLevel tasks lastConnectedAt lastDisconnectedAt');
     res.json({ success: true, data: employees });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -165,7 +165,7 @@ exports.getTeamLocations = async (req, res) => {
       role: 'employee', 
       isTrackingEnabled: true,
       _id: { $ne: req.user._id } // Exclude current user
-    }).select('name department designation status currentLocation lastSeen targetLocation');
+    }).select('name department designation status currentLocation lastSeen tasks');
     
     res.json({ success: true, data: employees });
   } catch (err) {
@@ -196,11 +196,14 @@ exports.setTargetLocation = async (req, res) => {
     }
 
     const employee = await User.findByIdAndUpdate(employeeId, {
-      targetLocation: {
-        latitude,
-        longitude,
-        label: label || 'Assigned Destination',
-        setAt: new Date(),
+      $push: {
+        tasks: {
+          latitude,
+          longitude,
+          label: label || 'Assigned Task',
+          setAt: new Date(),
+          status: 'pending'
+        }
       }
     }, { new: true });
 
@@ -211,17 +214,17 @@ exports.setTargetLocation = async (req, res) => {
     if (io) {
       io.to('admin_room').emit('employeeStatusChange', {
         employeeId: employee._id.toString(),
-        targetLocation: employee.targetLocation,
+        tasks: employee.tasks,
       });
       
-      // Specifically inform the employee if they are connected
-      io.to('employee_room').emit('target:update', {
+      // Specifically inform the employee
+      io.to(`employee_${employeeId}`).emit('target:update', {
         employeeId: employee._id.toString(),
-        targetLocation: employee.targetLocation,
+        tasks: employee.tasks,
       });
     }
 
-    res.json({ success: true, message: 'Target location set.', data: employee.targetLocation });
+    res.json({ success: true, message: 'Target location set.', data: employee.tasks });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -233,12 +236,7 @@ exports.clearTargetLocation = async (req, res) => {
   try {
     const { employeeId } = req.params;
     const employee = await User.findByIdAndUpdate(employeeId, {
-      targetLocation: {
-        latitude: null,
-        longitude: null,
-        label: 'Assigned Destination',
-        setAt: null,
-      }
+      $set: { tasks: [] }
     }, { new: true });
 
     if (!employee) return res.status(404).json({ success: false, message: 'Employee not found.' });
@@ -247,11 +245,11 @@ exports.clearTargetLocation = async (req, res) => {
     if (io) {
       io.to('admin_room').emit('employeeStatusChange', {
         employeeId: employee._id.toString(),
-        targetLocation: null,
+        tasks: [],
       });
-      io.to('employee_room').emit('target:update', {
+      io.to(`employee_${employeeId}`).emit('target:update', {
         employeeId: employee._id.toString(),
-        targetLocation: null,
+        tasks: [],
       });
     }
 

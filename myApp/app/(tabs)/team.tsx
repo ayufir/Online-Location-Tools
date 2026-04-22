@@ -1,6 +1,19 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Platform, Dimensions } from 'react-native';
-import MapView, { Marker, Popup } from 'react-native-maps';
+// Dynamically import Maps only for Native to avoid web bundling errors
+let MapView: any = View;
+let Marker: any = View;
+let Polyline: any = View;
+if (Platform.OS !== 'web') {
+  try {
+    const Maps = require('react-native-maps');
+    MapView = Maps.default || Maps;
+    Marker = Maps.Marker;
+    Polyline = Maps.Polyline;
+  } catch (e) {
+    console.warn('Maps not available');
+  }
+}
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../src/api/client';
@@ -143,7 +156,7 @@ export default function TeamFleetScreen() {
                           <Ionicons name="flag" size={24} color="#10B981" />
                        </View>
                     </Marker>
-                    <MapView.Polyline
+                    <Polyline
                       coordinates={[
                         { latitude: emp.currentLocation.latitude, longitude: emp.currentLocation.longitude },
                         { latitude: target.latitude, longitude: target.longitude }

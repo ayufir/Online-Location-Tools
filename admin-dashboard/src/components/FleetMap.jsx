@@ -64,11 +64,50 @@ const MapController = ({ selectedId, employees, liveLocations, historyCoords }) 
 };
 
 // ─── Component: FleetMap ──────────────────────────────────────────────────────
-const FleetMap = ({ employees = [], selectedId, onSelectEmployee, showHistory, historyCoords = [], onSetTarget, onClearTarget, assets = [], onAddAsset, onDeleteAsset }) => {
+const FleetMap = ({ employees = [], selectedId, assigningToId, onSelectEmployee, showHistory, historyCoords = [], onSetTarget, onClearTarget, assets = [], onAddAsset, onDeleteAsset }) => {
   const { liveLocations } = useSocket();
   const [isSatellite, setIsSatellite] = useState(false);
-  const [trails, setTrails] = useState({});
   const [isAddingAsset, setIsAddingAsset] = useState(false);
+
+  const TILE_LAYERS = {
+    standard: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
+    satellite: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+  };
+
+  const createCustomIcon = (emp, status) => {
+    return L.divIcon({
+      className: `custom-marker ${status} ${selectedId === emp._id ? 'selected' : ''}`,
+      html: `
+        <div class="l-marker">
+           <div class="l-marker-ring"></div>
+           <div class="l-marker-body">
+              <span class="l-marker-initials">${getInitials(emp.name)}</span>
+           </div>
+           <div class="l-marker-label">${emp.name}</div>
+        </div>
+      `,
+      iconSize: [40, 40],
+      iconAnchor: [20, 20],
+    });
+  };
+
+  const createTargetIcon = () => {
+    return L.divIcon({
+      className: 'target-marker-icon',
+      html: `
+        <div class="target-flag">
+           <div class="target-solar">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="2" y="5" width="20" height="14" rx="1" fill="#0F172A" stroke="#FFB800" stroke-width="2"/>
+                <path d="M2 12H22M8 5V19M16 5V19" stroke="#FFB800" stroke-width="1"/>
+              </svg>
+           </div>
+        </div>
+      `,
+      iconSize: [30, 30],
+      iconAnchor: [15, 15],
+    });
+  };
 
   const createAssetIcon = (asset) => {
     return L.divIcon({
@@ -84,87 +123,49 @@ const FleetMap = ({ employees = [], selectedId, onSelectEmployee, showHistory, h
     });
   };
 
-  useEffect(() => {
-    const newTrails = { ...trails };
-    let changed = false;
-
-    Object.keys(liveLocations).forEach(id => {
-      const loc = liveLocations[id]?.location;
-      if (!loc?.latitude || !loc?.longitude) return;
-
-      const currentTrail = newTrails[id] || [];
-      const lastPoint = currentTrail[currentTrail.length - 1];
-
-      if (!lastPoint || lastPoint.lat !== loc.latitude || lastPoint.lng !== loc.longitude) {
-        const updated = [...currentTrail, { lat: loc.latitude, lng: loc.longitude }].slice(-10);
-        newTrails[id] = updated;
-        changed = true;
-      }
-    });
-
-    if (changed) setTrails(newTrails);
-  }, [liveLocations]);
-
-  const createCustomIcon = (emp, status) => {
-    const initials = getInitials(emp.name);
-    // Use avatar if available, otherwise fallback to initials
-    const avatarUrl = emp.avatar || `https://i.pravatar.cc/100?u=${emp._id}`;
-    
-    return L.divIcon({
-      className: 'custom-leaflet-marker',
-      html: `
-        <div class="l-marker ${selectedId === emp._id ? 'selected' : ''} status-${status}">
-          <div class="l-marker-ring"></div>
-          <div class="l-marker-body">
-            ${emp.avatar || true ? 
-              `<img src="${avatarUrl}" class="l-marker-avatar-img" alt="${emp.name}" />` : 
-              `<span class="l-marker-initials">${initials}</span>`
-            }
-          </div>
-          <div class="l-marker-label">${emp.name.split(' ')[0]}</div>
-        </div>
-      `,
-      iconSize: [42, 42],
-      iconAnchor: [21, 21],
-    });
-  };
-
-  const createTargetIcon = () => {
-    return L.divIcon({
-      className: 'target-marker-icon',
-      html: `
-        <div class="target-flag">
-          <div class="target-pole"></div>
-          <div class="target-cloth">🏁</div>
-        </div>
-      `,
-      iconSize: [32, 32],
-      iconAnchor: [4, 32],
-    });
-  };
-
-  const TILE_LAYERS = {
-    standard: "https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}",
-    satellite: "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
-  };
-
   return (
-    <div className="fleet-map-container">
-      <MapContainer center={BHOPAL_CENTER} zoom={12} scrollWheelZoom={true} zoomControl={false}>
-        <TileLayer url={isSatellite ? TILE_LAYERS.satellite : TILE_LAYERS.standard} />
-
-        <div className="map-controls">
-          <button 
-            className={`map-btn ${isAddingAsset ? 'active' : ''}`} 
-            onClick={() => setIsAddingAsset(!isAddingAsset)}
-            title="Mark New Asset Location"
-          >
-            📍
-          </button>
-          <button className={`map-btn ${isSatellite ? 'active' : ''}`} onClick={() => setIsSatellite(!isSatellite)}>
-            {isSatellite ? '🏙️' : '🛰️'}
-          </button>
+    <div className={`fleet-map-container ${assigningToId ? 'assignment-mode' : ''}`}>
+      {/* Instructions for assignment mode */}
+      {assigningToId && (
+        <div className="map-instruction-overlay">
+           <div className="instruction-card glow-yellow">
+              <span className="inst-icon">☀️</span>
+              <div>
+                 <p className="inst-title">Assigning Solar Mission to {employees.find(e => e._id === assigningToId)?.name}</p>
+                 <p className="inst-sub">Click anywhere on the map to set location</p>
+              </div>
+           </div>
         </div>
+      )}
+
+      {/* Floating Controls */}
+      <div className="map-controls">
+        <button 
+          className={`map-btn ${isAddingAsset ? 'active' : ''}`} 
+          onClick={() => setIsAddingAsset(!isAddingAsset)}
+          title="Mark New Asset Location"
+        >
+          📍
+        </button>
+        <button className={`map-btn ${isSatellite ? 'active' : ''}`} onClick={() => setIsSatellite(!isSatellite)}>
+          {isSatellite ? '🏙️' : '🛰️'}
+        </button>
+      </div>
+
+      <MapContainer 
+        center={BHOPAL_CENTER} 
+        zoom={13} 
+        className="leaflet-container"
+        zoomControl={false}
+      >
+        <TileLayer url={isSatellite ? TILE_LAYERS.satellite : TILE_LAYERS.standard} />
+        
+        <MapController 
+          selectedId={selectedId} 
+          employees={employees} 
+          liveLocations={liveLocations} 
+          historyCoords={historyCoords} 
+        />
 
         {isAddingAsset ? (
            <MapEvents onMapClick={(latlng) => {
@@ -175,7 +176,7 @@ const FleetMap = ({ employees = [], selectedId, onSelectEmployee, showHistory, h
              }
            }} />
         ) : (
-           selectedId && <MapEvents onMapClick={(latlng) => onSetTarget(selectedId, latlng)} />
+           assigningToId && <MapEvents onMapClick={(latlng) => onSetTarget(latlng)} />
         )}
 
         {/* ── Asset Markers ── */}
@@ -188,48 +189,32 @@ const FleetMap = ({ employees = [], selectedId, onSelectEmployee, showHistory, h
             <Popup>
               <div className="asset-popup">
                 <div className="flex justify-between items-start mb-2">
-                  <strong>{asset.name}</strong>
+                  <span className="fw-800 text-lg">{asset.name}</span>
                   <button 
                     className="btn-delete-asset" 
-                    title="Remove Asset"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      onDeleteAsset(asset._id);
-                    }}
+                    onClick={() => onDeleteAsset(asset._id)}
                   >
                     🗑️
                   </button>
                 </div>
                 Type: {asset.type}<br/>
                 Status: <span className="status-tag">{asset.status}</span>
-                
-                {selectedId && (
-                  <div className="asset-action">
-                    <button 
-                      className="btn-assign-asset"
-                      onClick={() => onSetTarget(selectedId, { lat: asset.latitude, lng: asset.longitude, label: `MISSION: ${asset.name}` })}
-                    >
-                      🚀 Assign to Field Unit
-                    </button>
-                  </div>
-                )}
               </div>
             </Popup>
           </Marker>
         ))}
 
+        {/* ── Employee Markers ── */}
         {employees.map((emp) => {
           const live = liveLocations[emp._id] || {};
           const location = live.location || emp.currentLocation || { latitude: 23.2599, longitude: 77.4126 };
           const status = live.status || emp.status || 'offline';
-          const target = live.targetLocation || emp.targetLocation;
+          const tasks = live.tasks || emp.tasks || [];
 
           if (typeof location.latitude !== 'number' || typeof location.longitude !== 'number') return null;
 
           return (
             <React.Fragment key={emp._id}>
-              {/* Employee Marker */}
               <Marker 
                 position={[location.latitude, location.longitude]}
                 icon={createCustomIcon(emp, status)}
@@ -248,53 +233,46 @@ const FleetMap = ({ employees = [], selectedId, onSelectEmployee, showHistory, h
                     <div className="l-popup-battery">
                       🔋 Battery: <span className="fw-700">{live.batteryLevel ?? emp.batteryLevel ?? '--'}%</span>
                     </div>
-                    {target?.latitude && (
-                       <div className="l-popup-target">
-                         🎯 Heading to: {target.label}
-                         <button 
-                           className="btn-clear-target" 
-                           title="Clear Destination"
-                           onClick={(e) => { e.stopPropagation(); onClearTarget(emp._id); }}
-                         >
-                           🗑️
-                         </button>
-                       </div>
-                    )}
                   </div>
                 </Popup>
               </Marker>
 
-              {/* Target Marker & Path */}
-              {target?.latitude && target?.longitude && (
-                <>
-                  <Marker position={[target.latitude, target.longitude]} icon={createTargetIcon()}>
-                    <Popup>Destination: {target.label}</Popup>
+              {/* Task Markers & Paths */}
+              {tasks.map((task, idx) => (
+                <React.Fragment key={`${emp._id}-task-${idx}`}>
+                  <Marker position={[task.latitude, task.longitude]} icon={createTargetIcon()}>
+                    <Popup>
+                      <div className="l-popup-target">
+                         <span>{task.label}</span>
+                         <button className="btn-clear-target" onClick={() => onClearTarget(emp._id)}>❌</button>
+                      </div>
+                    </Popup>
                   </Marker>
                   <Polyline 
-                    positions={[[location.latitude, location.longitude], [target.latitude, target.longitude]]}
-                    color="#10B981"
-                    weight={2}
-                    dashArray="10, 10"
+                    positions={[
+                      [location.latitude, location.longitude], 
+                      [task.latitude, task.longitude]
+                    ]} 
+                    color={getStatusColor(status)} 
+                    dashArray="5, 10" 
+                    weight={2} 
                     opacity={0.5}
                   />
-                </>
-              )}
+                </React.Fragment>
+              ))}
             </React.Fragment>
           );
         })}
 
-        {Object.keys(trails).map(id => (
+        {/* ── History Path ── */}
+        {showHistory && historyCoords.length > 1 && (
           <Polyline 
-            key={`trail-${id}`}
-            positions={trails[id].map(p => [p.lat, p.lng])}
-            color={selectedId === id ? "#F59E0B" : "rgba(139, 148, 158, 0.4)"}
-            weight={selectedId === id ? 4 : 2}
-            dashArray="5, 8"
-            opacity={0.6}
+            positions={historyCoords.map(c => [c.latitude, c.longitude])} 
+            color="#FFB800" 
+            weight={4} 
+            opacity={0.8} 
           />
-        ))}
-
-        <MapController selectedId={selectedId} employees={employees} liveLocations={liveLocations} historyCoords={historyCoords} />
+        )}
       </MapContainer>
     </div>
   );

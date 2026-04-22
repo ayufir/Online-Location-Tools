@@ -8,6 +8,7 @@ const navItems = [
   { to: '/dashboard', icon: '📡', label: 'Live Dashboard' },
   { to: '/employees', icon: '👥', label: 'Employees' },
   { to: '/tracking',  icon: '🗺️', label: 'Track & History' },
+  { to: '/assets',    icon: '☀️', label: 'Solar Grid' },
 ];
 
 const Sidebar = () => {

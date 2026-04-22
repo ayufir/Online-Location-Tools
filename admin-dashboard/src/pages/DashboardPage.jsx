@@ -16,6 +16,7 @@ const DashboardPage = () => {
   const [viewSmsEmp, setViewSmsEmp] = useState(null);
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [assigningToId, setAssigningToId] = useState(null); // ID of employee currently being assigned a task
   const { liveLocations } = useSocket();
   const prevLiveIds = React.useRef(new Set());
   const lastRefresh = React.useRef(0);
@@ -86,16 +87,16 @@ const DashboardPage = () => {
       status: live.status,
       currentLocation: live.location,
       batteryLevel: live.batteryLevel,
-      targetLocation: live.targetLocation || emp.targetLocation,
+      tasks: live.tasks || emp.tasks || [],
     };
   });
 
   // Stats
   const stats = {
     total: (employees || []).length,
-    online: (displayEmployees || []).filter((e) => e.status !== 'offline').length,
+    online: (displayEmployees || []).filter((e) => (e.status || 'offline') !== 'offline').length,
     moving: (displayEmployees || []).filter((e) => e.status === 'moving').length,
-    idle: (displayEmployees || []).filter((e) => e.status === 'idle').length,
+    idle: (displayEmployees || []).filter((e) => e.status === 'idle' || e.status === 'online').length,
   };
 
   if (loading) {
@@ -107,10 +108,16 @@ const DashboardPage = () => {
     );
   }
 
-  const handleSetTarget = async (id, latlng) => {
+  const handleSetTarget = async (latlng) => {
+    const id = assigningToId;
+    if (!id) {
+       // Optional: Fallback to selectedId or toast
+       return;
+    }
+
     try {
-      const label = window.prompt('Enter destination label (e.g., Client Office, Site B):', 'Assigned Destination');
-      if (label === null) return; // Cancelled
+      const label = window.prompt('Enter mission label:', 'Assigned Task');
+      if (label === null) return; 
 
       const res = await employeeAPI.setTarget(id, {
         latitude: latlng.lat,
@@ -118,8 +125,10 @@ const DashboardPage = () => {
         label: label
       });
 
-      setEmployees(prev => prev.map(e => e._id === id ? { ...e, targetLocation: res.data } : e));
-      toast.success(`Destination assigned to ${displayEmployees.find(e => e._id === id)?.name}`);
+      const newTasks = Array.isArray(res.data) ? res.data : (res.data.tasks || []);
+      setEmployees(prev => prev.map(e => e._id === id ? { ...e, tasks: newTasks } : e));
+      toast.success(`Mission assigned to ${displayEmployees.find(e => e._id === id)?.name}`);
+      setAssigningToId(null); // Exit assignment mode
     } catch (err) {
       toast.error('Failed to set destination.');
     }
@@ -128,8 +137,8 @@ const DashboardPage = () => {
   const handleClearTarget = async (id) => {
     try {
       await employeeAPI.clearTarget(id);
-      setEmployees(prev => prev.map(e => e._id === id ? { ...e, targetLocation: null } : e));
-      toast.success('Destination cleared.');
+      setEmployees(prev => prev.map(e => e._id === id ? { ...e, tasks: [] } : e));
+      toast.success('All destinations cleared.');
     } catch (err) {
       toast.error('Failed to clear destination.');
     }
@@ -162,7 +171,7 @@ const DashboardPage = () => {
       <div className="dashboard-fleet glass-sidebar">
         {/* ... existing header ... */}
         <div className="fleet-header">
-          <div className="flex justify-between items-center mb-4">
+          <div className="fleet-title-row">
             <div>
               <h2 className="premium-title">FIELD LOGISTICS</h2>
               <p className="text-xs text-muted">LIVE FLEET OVERVIEW</p>
@@ -171,13 +180,17 @@ const DashboardPage = () => {
           </div>
 
           <div className="fleet-stats-grid">
-            <div className="f-stat glass-card">
+            <div className="f-stat">
               <span className="f-val">{stats.total}</span>
               <span className="f-label">UNITS</span>
             </div>
-            <div className="f-stat glass-card border-moving">
+            <div className="f-stat">
               <span className="f-val text-moving">{stats.moving}</span>
               <span className="f-label">MOBILE</span>
+            </div>
+            <div className="f-stat">
+              <span className="f-val text-accent">{stats.idle}</span>
+              <span className="f-label">IDLE</span>
             </div>
           </div>
         </div>
@@ -198,6 +211,8 @@ const DashboardPage = () => {
                 onViewGallery={() => setViewGalleryEmp(emp)}
                 onViewSms={() => setViewSmsEmp(emp)}
                 onToggleTracking={handleToggleTracking}
+                isAssigning={assigningToId === emp._id}
+                onAssignTask={(id) => setAssigningToId(id === assigningToId ? null : id)}
               />
             ))
           )}
@@ -209,6 +224,7 @@ const DashboardPage = () => {
         <FleetMap
           employees={displayEmployees}
           selectedId={selectedId}
+          assigningToId={assigningToId}
           onSelectEmployee={setSelectedId}
           onSetTarget={handleSetTarget}
           onClearTarget={handleClearTarget}
@@ -218,10 +234,6 @@ const DashboardPage = () => {
         />
       </div>
 
-      {/* ── Activity Feed (Optional Overlay) ── */}
-      <div className="dashboard-status-overlay">
-         <ActivityFeed />
-      </div>
       {/* ── Gallery Modal ── */}
       {viewGalleryEmp && (
         <ViewGalleryModal 

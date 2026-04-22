@@ -49,7 +49,7 @@ const EmployeesPage = () => {
   );
 
   return (
-    <div className="employees-page flex flex-col gap-24">
+    <div className="employees-page scroll-container gap-24">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="page-title">Fleet Directory</h1>

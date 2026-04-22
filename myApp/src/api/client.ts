@@ -2,10 +2,10 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 
-// REPLACE WITH YOUR BACKEND IP ADDRESS (eg. http://192.168.1.10:5000)
-// Do not use localhost on physical devices
-export const BASE_URL = 'http://192.168.1.12:5000'; 
-
+// FOR LOCAL TESTING: Replace with your PC's IP (e.g., 'http://192.168.1.10:5000')
+// FOR PRODUCTION: Use 'https://online-location-tools-backend.onrender.com'
+export const BASE_URL = 'https://online-location-tools-backend.onrender.com'; 
+// export const BASE_URL = 'http://YOUR_PC_IP:5000'; // USE THIS FOR LOCAL CHANGES
 const api = axios.create({
   baseURL: `${BASE_URL}/api`,
   timeout: 10000,

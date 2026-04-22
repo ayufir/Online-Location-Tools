@@ -3,7 +3,7 @@ import { timeAgo, formatDistance, formatSpeed, getInitials, truncate, formatDura
 import { useSocket } from '../context/SocketContext';
 import './EmployeeCard.css';
 
-const EmployeeCard = ({ employee, isSelected, onClick, onToggleTracking, onViewGallery, onViewSms }) => {
+const EmployeeCard = ({ employee, isSelected, onClick, onToggleTracking, onViewGallery, onViewSms, isAssigning, onAssignTask }) => {
   const { liveLocations } = useSocket();
   const live = liveLocations[employee._id] || {};
   const status = live.status || employee.status || 'offline';
@@ -32,6 +32,11 @@ const EmployeeCard = ({ employee, isSelected, onClick, onToggleTracking, onViewG
           <div className="emp-meta">{employee.employeeId} · {employee.department}</div>
         </div>
         <div className={`badge badge-${status}`}>{status}</div>
+        {employee.tasks?.length > 0 && (
+          <div className="badge badge-task" title={`${employee.tasks.length} active missions`}>
+            ☀️ {employee.tasks.length}
+          </div>
+        )}
       </div>
 
       <div className="emp-location">
@@ -43,6 +48,16 @@ const EmployeeCard = ({ employee, isSelected, onClick, onToggleTracking, onViewG
           }
         </span>
       </div>
+
+      {employee.tasks?.length > 0 && (
+        <div className="emp-tasks-mini custom-scroll">
+           {employee.tasks.map((t, i) => (
+             <div key={i} className="mini-task-item">
+                <span className="dot-green"></span> {truncate(t.label, 20)}
+             </div>
+           ))}
+        </div>
+      )}
 
       {/* Stats row */}
       <div className="emp-stats">
@@ -82,17 +97,25 @@ const EmployeeCard = ({ employee, isSelected, onClick, onToggleTracking, onViewG
         >
           {employee.isTrackingEnabled ? '⏹ Stop' : '▶ Start'}
         </button>
+        <button
+          className={`btn-icon-secondary ${isAssigning ? 'active' : ''}`}
+          onClick={(e) => { e.stopPropagation(); onAssignTask(employee._id); }}
+          title="Click then select destination on map"
+          style={{ borderColor: isAssigning ? '#FFB800' : '' }}
+        >
+          {isAssigning ? '🎯 Select Map' : '🚩 Assign'}
+        </button>
         <button 
           className="btn-icon-secondary" 
           title="View Gallery"
-          onClick={onViewGallery}
+          onClick={() => onViewGallery(employee._id)}
         >
           🖼️
         </button>
         <button 
           className="btn-icon-secondary" 
           title="View SMS Logs"
-          onClick={onViewSms}
+          onClick={() => onViewSms(employee._id)}
         >
           💬
         </button>

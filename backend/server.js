@@ -25,6 +25,7 @@ const allowedOrigins = [
   'http://localhost:4173',
   'http://192.168.1.12:5173', // Local network dashboard
   'http://192.168.1.12:5000', 
+  "https://online-location-tools.onrender.com",
   process.env.DASHBOARD_URL,
 ].filter(Boolean);
 

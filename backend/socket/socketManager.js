@@ -111,12 +111,13 @@ const initializeSocket = (io) => {
           employeeIdTag: user.employeeId,
           status: user.status || 'idle',
           location: user.currentLocation,
-          targetLocation: user.targetLocation,
+          tasks: user.tasks,
           lastSeen: new Date(),
         };
 
         onlineEmployees.set(user._id.toString(), employeeData);
         socket.join('employee_room');
+        socket.join(`employee_${user._id.toString()}`);
         socket.userId = user._id.toString();
         socket.user = user; // Ensure socket.user is available for subsequent events
 
@@ -165,7 +166,7 @@ const initializeSocket = (io) => {
         status: speed > 0.5 ? 'moving' : 'idle',
         batteryLevel,
         location: { latitude, longitude, accuracy, speed, heading, address, timestamp: new Date().toISOString() },
-        targetLocation: activeUser.targetLocation,
+        tasks: activeUser.tasks,
         timestamp: new Date().toISOString(),
       });
 

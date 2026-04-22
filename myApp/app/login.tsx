@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Alert, Dimensions } from 'react-native';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { startBackgroundTracking } from '../src/tasks/locationTask';
 import api from '../src/api/client';
+import { Ionicons } from '@expo/vector-icons';
+
+const { width } = Dimensions.get('window');
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -19,42 +22,29 @@ export default function LoginScreen() {
       const response = await api.post('/auth/login', { email, password });
       const { user, accessToken } = response.data.data;
 
-      // Store auth state
       await AsyncStorage.setItem('token', accessToken);
       await AsyncStorage.setItem('user', JSON.stringify(user));
       await AsyncStorage.setItem('userRole', user.role);
 
-      // ─── Role-Based Initialization ───────────────────────────────────────
       if (user.role === 'admin') {
-          // Admins go straight to Fleet Command
           router.replace('/');
           return;
       }
 
-      // Employees must comply with Tracking Permissions
       const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
       if (fgStatus !== 'granted') {
-          Alert.alert(
-            'Access Denied', 
-            'Fleet tracking requires location access to function. Please enable it in settings to proceed.',
-            [{ text: 'OK' }]
-          );
+          Alert.alert('Access Denied', 'Location access is required.');
           setLoading(false);
           return;
       }
 
-      // Request Background (Always) - Explaining why it's needed
       Alert.alert(
-        'Background Tracking',
-        'To ensure mission sync while your phone is locked, please select "Allow Always" for location access.',
+        'System Activation',
+        'Ready to start mission tracking.',
         [{ 
-          text: 'Proceed', 
+          text: 'ACTIVATE', 
           onPress: async () => {
-             const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-             if (bgStatus !== 'granted') {
-                console.warn('[Onboarding] Background permission not fully granted.');
-             }
-             // AUTO-START tracking immediately upon login
+             await Location.requestBackgroundPermissionsAsync();
              await startBackgroundTracking().catch(e => console.log('Auto-start failed:', e));
              router.replace('/');
           } 
@@ -68,48 +58,54 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
-        <View style={styles.header}>
-           <View style={styles.logoOrb}>
-              <Text style={styles.logo}>🌞</Text>
-           </View>
-           <Text style={styles.title}>SolarTrack Pro</Text>
-           <Text style={styles.subtitle}>Fleet Intelligence System</Text>
-        </View>
+    <View style={styles.mainContainer}>
+      <KeyboardAvoidingView 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
+          <View style={styles.header}>
+             <View style={styles.logoOrb}>
+                <Ionicons name="sunny" size={50} color="#007AFF" />
+             </View>
+             <Text style={styles.title}>SOLARTRACK</Text>
+             <Text style={styles.subtitle}>FLEET COMMAND CENTER</Text>
+          </View>
 
-        <View style={styles.authCard}>
-          <View style={styles.cardBlur}>
-            <Text style={styles.cardTitle}>Unit Access</Text>
-            <Text style={styles.cardSub}>Sign in to start patrol</Text>
+          <View style={styles.authCard}>
+            <Text style={styles.cardTitle}>Unit Login</Text>
+            <Text style={styles.cardSub}>Sign in to access your dashboard</Text>
 
             <View style={styles.form}>
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>COMMS ID (EMAIL)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="name@division.com"
-                  placeholderTextColor="#484F58"
-                  value={email}
-                  onChangeText={setEmail}
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                />
+                <Text style={styles.label}>EMAIL ADDRESS</Text>
+                <View style={styles.inputWrapper}>
+                   <Ionicons name="mail-outline" size={18} color="#94A3B8" />
+                   <TextInput
+                     style={styles.input}
+                     placeholder="your@email.com"
+                     placeholderTextColor="#94A3B8"
+                     value={email}
+                     onChangeText={setEmail}
+                     keyboardType="email-address"
+                     autoCapitalize="none"
+                   />
+                </View>
               </View>
 
               <View style={styles.inputGroup}>
-                <Text style={styles.label}>SECURE KEY (PASSWORD)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="••••••••"
-                  placeholderTextColor="#484F58"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                />
+                <Text style={styles.label}>PASSWORD</Text>
+                <View style={styles.inputWrapper}>
+                   <Ionicons name="lock-closed-outline" size={18} color="#94A3B8" />
+                   <TextInput
+                     style={styles.input}
+                     placeholder="••••••••"
+                     placeholderTextColor="#94A3B8"
+                     value={password}
+                     onChangeText={setPassword}
+                     secureTextEntry
+                   />
+                </View>
               </View>
 
               {error ? <View style={styles.errorContainer}><Text style={styles.errorText}>{error}</Text></View> : null}
@@ -120,180 +116,174 @@ export default function LoginScreen() {
                 disabled={loading}
                 activeOpacity={0.8}
               >
-                <Text style={styles.loginBtnText}>{loading ? 'INITIALIZING...' : '🚀 JOIN FLEET'}</Text>
+                <Text style={styles.loginBtnText}>{loading ? 'SYNCING...' : 'LOGIN TO FLEET'}</Text>
+                <Ionicons name="chevron-forward" size={20} color="#FFF" />
               </TouchableOpacity>
             </View>
           </View>
-        </View>
 
-        <View style={styles.footer}>
-           <Text style={styles.footerText}>Secure End-to-End Tracking Enabled</Text>
-           <Text style={styles.versionText}>v1.2.0-vanguard</Text>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <View style={styles.footer}>
+             <Text style={styles.footerText}>SOLAR TRACK PRO SYSTEM</Text>
+             <Text style={styles.versionText}>V3.0.1 LIGHT OPS</Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  mainContainer: {
+    flex: 1,
+    backgroundColor: '#F8FAFC', // Clean Light Grey/Blue background
+  },
   container: {
     flex: 1,
-    backgroundColor: '#010409',
   },
   scrollContent: {
     flexGrow: 1,
-    padding: 24,
+    padding: 30,
     justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
-    marginBottom: 50,
+    marginBottom: 40,
   },
   logoOrb: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 184, 0, 0.03)',
+    width: 90,
+    height: 90,
+    borderRadius: 30,
+    backgroundColor: '#FFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 30,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 184, 0, 0.15)',
-    shadowColor: '#FFB800',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.2,
-    shadowRadius: 30,
-    elevation: 20,
-  },
-  logo: {
-    fontSize: 54,
-    textShadowColor: 'rgba(255, 184, 0, 0.4)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 15,
+    marginBottom: 20,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 5,
   },
   title: {
-    fontSize: 38,
+    fontSize: 32,
     fontWeight: '900',
-    color: '#F0F6FC',
-    letterSpacing: -1.5,
+    color: '#0F172A',
+    letterSpacing: 2,
   },
   subtitle: {
-    fontSize: 11,
-    color: '#FFB800',
-    fontWeight: '900',
-    textTransform: 'uppercase',
+    fontSize: 10,
+    color: '#64748B',
+    fontWeight: '800',
     letterSpacing: 4,
-    marginTop: 8,
+    marginTop: 5,
   },
   authCard: {
-    borderRadius: 40,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 184, 0, 0.08)',
-    backgroundColor: 'rgba(13, 17, 23, 0.98)',
+    backgroundColor: '#FFF',
+    borderRadius: 30,
+    padding: 30,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.5,
-    shadowRadius: 40,
-    elevation: 15,
-  },
-  cardBlur: {
-    padding: 36,
+    shadowOpacity: 0.05,
+    shadowRadius: 30,
+    elevation: 10,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   cardTitle: {
-    color: '#F0F6FC',
+    color: '#0F172A',
     fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: -0.5,
+    fontWeight: '800',
   },
   cardSub: {
-    color: '#484F58',
-    fontSize: 13,
-    marginTop: 6,
-    marginBottom: 36,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+    color: '#64748B',
+    fontSize: 14,
+    marginTop: 5,
+    marginBottom: 30,
   },
   form: {
-    gap: 28,
+    gap: 20,
   },
   inputGroup: {
-    gap: 12,
+    gap: 8,
   },
   label: {
-    color: '#30363D',
+    color: '#94A3B8',
     fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginLeft: 5,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    paddingHorizontal: 15,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   input: {
-    backgroundColor: 'rgba(240, 246, 252, 0.01)',
-    borderRadius: 20,
-    padding: 20,
-    color: '#F0F6FC',
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(240, 246, 252, 0.05)',
-    fontWeight: '700',
+    flex: 1,
+    padding: 15,
+    color: '#0F172A',
+    fontSize: 15,
+    fontWeight: '600',
   },
   errorContainer: {
-    backgroundColor: 'rgba(239, 68, 68, 0.08)',
-    padding: 16,
-    borderRadius: 16,
+    backgroundColor: '#FEF2F2',
+    padding: 12,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.2)',
+    borderColor: '#FEE2E2',
   },
   errorText: {
-    color: '#F87171',
-    fontSize: 13,
-    fontWeight: '800',
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '700',
     textAlign: 'center',
   },
   loginBtn: {
-    backgroundColor: '#FFB800',
-    padding: 22,
-    borderRadius: 22,
-    alignItems: 'center',
-    marginTop: 10,
-    shadowColor: '#FFB800',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  disabledBtn: {
-    opacity: 0.5,
-  },
-  loginBtnText: {
-    color: '#000',
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-  },
-  footer: {
-    marginTop: 50,
+    backgroundColor: '#007AFF', // Professional Blue
+    padding: 18,
+    borderRadius: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
     gap: 12,
+    marginTop: 10,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
   },
-  footerText: {
-    color: '#30363D',
-    fontSize: 11,
+  disabledBtn: {
+    backgroundColor: '#94A3B8',
+  },
+  loginBtnText: {
+    color: '#FFF',
+    fontSize: 16,
     fontWeight: '800',
     letterSpacing: 1,
-    textTransform: 'uppercase',
+  },
+  footer: {
+    marginTop: 40,
+    alignItems: 'center',
+    gap: 8,
+  },
+  footerText: {
+    color: '#94A3B8',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
   versionText: {
-    color: '#21262D',
+    color: '#007AFF',
     fontSize: 9,
     fontWeight: '900',
-    letterSpacing: 3,
-    backgroundColor: 'rgba(255, 184, 0, 0.05)',
-    paddingHorizontal: 12,
+    letterSpacing: 2,
+    backgroundColor: 'rgba(0, 122, 255, 0.05)',
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 184, 0, 0.1)',
+    borderRadius: 8,
   },
 });

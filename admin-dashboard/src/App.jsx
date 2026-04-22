@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import EmployeesPage from './pages/EmployeesPage';
 import TrackingPage from './pages/TrackingPage';
+import AssetsPage from './pages/AssetsPage';
 import AppLayout from './components/AppLayout';
 
 // Protected route wrapper
@@ -59,6 +60,7 @@ const App = () => {
                       <Route path="/dashboard" element={<DashboardPage />} />
                       <Route path="/employees" element={<EmployeesPage />} />
                       <Route path="/tracking" element={<TrackingPage />} />
+                      <Route path="/assets" element={<AssetsPage />} />
                       <Route path="*" element={<Navigate to="/dashboard" replace />} />
                     </Routes>
                   </AppLayout>

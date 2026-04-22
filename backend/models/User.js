@@ -92,12 +92,13 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-    targetLocation: {
+    tasks: [{
       latitude: { type: Number, default: null },
       longitude: { type: Number, default: null },
-      label: { type: String, default: 'Assigned Destination' },
-      setAt: { type: Date, default: null },
-    },
+      label: { type: String, default: 'Assigned Task' },
+      status: { type: String, enum: ['pending', 'completed'], default: 'pending' },
+      setAt: { type: Date, default: Date.now },
+    }],
     isActive: {
       type: Boolean,
       default: true,
