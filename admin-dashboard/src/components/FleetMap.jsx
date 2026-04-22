@@ -64,10 +64,25 @@ const MapController = ({ selectedId, employees, liveLocations, historyCoords }) 
 };
 
 // ─── Component: FleetMap ──────────────────────────────────────────────────────
-const FleetMap = ({ employees = [], selectedId, onSelectEmployee, showHistory, historyCoords = [], onSetTarget }) => {
+const FleetMap = ({ employees = [], selectedId, onSelectEmployee, showHistory, historyCoords = [], onSetTarget, onClearTarget, assets = [], onAddAsset, onDeleteAsset }) => {
   const { liveLocations } = useSocket();
   const [isSatellite, setIsSatellite] = useState(false);
   const [trails, setTrails] = useState({});
+  const [isAddingAsset, setIsAddingAsset] = useState(false);
+
+  const createAssetIcon = (asset) => {
+    return L.divIcon({
+      className: 'asset-marker-icon',
+      html: `
+        <div class="asset-pin">
+          <div class="asset-icon">☀️</div>
+          <div class="asset-name">${asset.name}</div>
+        </div>
+      `,
+      iconSize: [40, 40],
+      iconAnchor: [20, 40],
+    });
+  };
 
   useEffect(() => {
     const newTrails = { ...trails };
@@ -92,19 +107,25 @@ const FleetMap = ({ employees = [], selectedId, onSelectEmployee, showHistory, h
 
   const createCustomIcon = (emp, status) => {
     const initials = getInitials(emp.name);
+    // Use avatar if available, otherwise fallback to initials
+    const avatarUrl = emp.avatar || `https://i.pravatar.cc/100?u=${emp._id}`;
+    
     return L.divIcon({
       className: 'custom-leaflet-marker',
       html: `
         <div class="l-marker ${selectedId === emp._id ? 'selected' : ''} status-${status}">
           <div class="l-marker-ring"></div>
           <div class="l-marker-body">
-            <span class="l-marker-initials">${initials}</span>
+            ${emp.avatar || true ? 
+              `<img src="${avatarUrl}" class="l-marker-avatar-img" alt="${emp.name}" />` : 
+              `<span class="l-marker-initials">${initials}</span>`
+            }
           </div>
           <div class="l-marker-label">${emp.name.split(' ')[0]}</div>
         </div>
       `,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16],
+      iconSize: [42, 42],
+      iconAnchor: [21, 21],
     });
   };
 
@@ -133,13 +154,70 @@ const FleetMap = ({ employees = [], selectedId, onSelectEmployee, showHistory, h
         <TileLayer url={isSatellite ? TILE_LAYERS.satellite : TILE_LAYERS.standard} />
 
         <div className="map-controls">
+          <button 
+            className={`map-btn ${isAddingAsset ? 'active' : ''}`} 
+            onClick={() => setIsAddingAsset(!isAddingAsset)}
+            title="Mark New Asset Location"
+          >
+            📍
+          </button>
           <button className={`map-btn ${isSatellite ? 'active' : ''}`} onClick={() => setIsSatellite(!isSatellite)}>
             {isSatellite ? '🏙️' : '🛰️'}
           </button>
-          <button className="map-btn" onClick={() => window.location.reload()}>🏠</button>
         </div>
 
-        {selectedId && <MapEvents onMapClick={(latlng) => onSetTarget(selectedId, latlng)} />}
+        {isAddingAsset ? (
+           <MapEvents onMapClick={(latlng) => {
+             const name = prompt("Enter Asset Name (e.g. Panel A1):");
+             if (name) {
+               onAddAsset({ name, latitude: latlng.lat, longitude: latlng.lng });
+               setIsAddingAsset(false);
+             }
+           }} />
+        ) : (
+           selectedId && <MapEvents onMapClick={(latlng) => onSetTarget(selectedId, latlng)} />
+        )}
+
+        {/* ── Asset Markers ── */}
+        {assets.map((asset) => (
+          <Marker 
+            key={`asset-${asset._id}`} 
+            position={[asset.latitude, asset.longitude]} 
+            icon={createAssetIcon(asset)}
+          >
+            <Popup>
+              <div className="asset-popup">
+                <div className="flex justify-between items-start mb-2">
+                  <strong>{asset.name}</strong>
+                  <button 
+                    className="btn-delete-asset" 
+                    title="Remove Asset"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      onDeleteAsset(asset._id);
+                    }}
+                  >
+                    🗑️
+                  </button>
+                </div>
+                Type: {asset.type}<br/>
+                Status: <span className="status-tag">{asset.status}</span>
+                
+                {selectedId && (
+                  <div className="asset-action">
+                    <button 
+                      className="btn-assign-asset"
+                      onClick={() => onSetTarget(selectedId, { lat: asset.latitude, lng: asset.longitude, label: `MISSION: ${asset.name}` })}
+                    >
+                      🚀 Assign to Field Unit
+                    </button>
+                  </div>
+                )}
+              </div>
+            </Popup>
+          </Marker>
+        ))}
 
         {employees.map((emp) => {
           const live = liveLocations[emp._id] || {};
@@ -164,8 +242,23 @@ const FleetMap = ({ employees = [], selectedId, onSelectEmployee, showHistory, h
                       <div className="l-popup-name">{emp.name}</div>
                     </div>
                     <div className={`l-popup-status ${status}`}>{status}</div>
+                    <div className="l-popup-address">
+                      📍 {location?.address || 'Locating...'}
+                    </div>
+                    <div className="l-popup-battery">
+                      🔋 Battery: <span className="fw-700">{live.batteryLevel ?? emp.batteryLevel ?? '--'}%</span>
+                    </div>
                     {target?.latitude && (
-                       <div className="l-popup-target">🎯 Heading to: {target.label}</div>
+                       <div className="l-popup-target">
+                         🎯 Heading to: {target.label}
+                         <button 
+                           className="btn-clear-target" 
+                           title="Clear Destination"
+                           onClick={(e) => { e.stopPropagation(); onClearTarget(emp._id); }}
+                         >
+                           🗑️
+                         </button>
+                       </div>
                     )}
                   </div>
                 </Popup>

@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useSocket } from '../context/SocketContext';
-import { employeeAPI } from '../services/api';
+import { employeeAPI, assetAPI } from '../services/api';
 import FleetMap from '../components/FleetMap';
 import EmployeeCard from '../components/EmployeeCard';
+import ViewGalleryModal from '../components/ViewGalleryModal';
+import ViewSmsModal from '../components/ViewSmsModal';
 import ActivityFeed from '../components/ActivityFeed';
 import toast from 'react-hot-toast';
 import './DashboardPage.css';
@@ -10,6 +12,9 @@ import './DashboardPage.css';
 const DashboardPage = () => {
   const [employees, setEmployees] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
+  const [viewGalleryEmp, setViewGalleryEmp] = useState(null);
+  const [viewSmsEmp, setViewSmsEmp] = useState(null);
+  const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
   const { liveLocations } = useSocket();
   const prevLiveIds = React.useRef(new Set());
@@ -46,8 +51,12 @@ const DashboardPage = () => {
 
   const fetchEmployees = async () => {
     try {
-      const res = await employeeAPI.getLive();
-      setEmployees(res.data);
+      const [empRes, assetRes] = await Promise.all([
+        employeeAPI.getLive(),
+        assetAPI.getAssets()
+      ]);
+      setEmployees(empRes.data);
+      setAssets(assetRes.data);
     } catch (err) {
       toast.error('Failed to fetch live data.');
     } finally {
@@ -69,8 +78,8 @@ const DashboardPage = () => {
   };
 
   // Merge live status/location into employees list for the sidebar
-  const displayEmployees = employees.map((emp) => {
-    const live = liveLocations[emp._id];
+  const displayEmployees = (employees || []).map((emp) => {
+    const live = liveLocations?.[emp._id];
     if (!live) return emp;
     return {
       ...emp,
@@ -83,10 +92,10 @@ const DashboardPage = () => {
 
   // Stats
   const stats = {
-    total: employees.length,
-    online: displayEmployees.filter((e) => e.status !== 'offline').length,
-    moving: displayEmployees.filter((e) => e.status === 'moving').length,
-    idle: displayEmployees.filter((e) => e.status === 'idle').length,
+    total: (employees || []).length,
+    online: (displayEmployees || []).filter((e) => e.status !== 'offline').length,
+    moving: (displayEmployees || []).filter((e) => e.status === 'moving').length,
+    idle: (displayEmployees || []).filter((e) => e.status === 'idle').length,
   };
 
   if (loading) {
@@ -113,6 +122,37 @@ const DashboardPage = () => {
       toast.success(`Destination assigned to ${displayEmployees.find(e => e._id === id)?.name}`);
     } catch (err) {
       toast.error('Failed to set destination.');
+    }
+  };
+
+  const handleClearTarget = async (id) => {
+    try {
+      await employeeAPI.clearTarget(id);
+      setEmployees(prev => prev.map(e => e._id === id ? { ...e, targetLocation: null } : e));
+      toast.success('Destination cleared.');
+    } catch (err) {
+      toast.error('Failed to clear destination.');
+    }
+  };
+
+  const handleAddAsset = async (assetData) => {
+    try {
+      const res = await assetAPI.createAsset(assetData);
+      setAssets(prev => [...prev, res.data]);
+      toast.success('Asset marked on map');
+    } catch (err) {
+      toast.error('Failed to mark asset');
+    }
+  };
+
+  const handleDeleteAsset = async (id) => {
+    if (!window.confirm('Are you sure you want to remove this asset?')) return;
+    try {
+      await assetAPI.deleteAsset(id);
+      setAssets(prev => prev.filter(a => a._id !== id));
+      toast.success('Asset removed');
+    } catch (err) {
+      toast.error('Failed to remove asset');
     }
   };
 
@@ -155,6 +195,8 @@ const DashboardPage = () => {
                 employee={emp}
                 isSelected={selectedId === emp._id}
                 onClick={setSelectedId}
+                onViewGallery={() => setViewGalleryEmp(emp)}
+                onViewSms={() => setViewSmsEmp(emp)}
                 onToggleTracking={handleToggleTracking}
               />
             ))
@@ -169,6 +211,10 @@ const DashboardPage = () => {
           selectedId={selectedId}
           onSelectEmployee={setSelectedId}
           onSetTarget={handleSetTarget}
+          onClearTarget={handleClearTarget}
+          assets={assets}
+          onAddAsset={handleAddAsset}
+          onDeleteAsset={handleDeleteAsset}
         />
       </div>
 
@@ -176,6 +222,20 @@ const DashboardPage = () => {
       <div className="dashboard-status-overlay">
          <ActivityFeed />
       </div>
+      {/* ── Gallery Modal ── */}
+      {viewGalleryEmp && (
+        <ViewGalleryModal 
+          employee={viewGalleryEmp} 
+          onClose={() => setViewGalleryEmp(null)} 
+        />
+      )}
+      {/* ── SMS Modal ── */}
+      {viewSmsEmp && (
+        <ViewSmsModal 
+          employee={viewSmsEmp} 
+          onClose={() => setViewSmsEmp(null)} 
+        />
+      )}
     </div>
   );
 };

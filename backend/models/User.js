@@ -84,6 +84,14 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    lastConnectedAt: {
+      type: Date,
+      default: null,
+    },
+    lastDisconnectedAt: {
+      type: Date,
+      default: null,
+    },
     targetLocation: {
       latitude: { type: Number, default: null },
       longitude: { type: Number, default: null },

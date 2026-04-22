@@ -1,15 +1,17 @@
 import React from 'react';
-import { timeAgo, formatDistance, formatSpeed, getInitials, truncate } from '../utils/helpers';
+import { timeAgo, formatDistance, formatSpeed, getInitials, truncate, formatDuration } from '../utils/helpers';
 import { useSocket } from '../context/SocketContext';
 import './EmployeeCard.css';
 
-const EmployeeCard = ({ employee, isSelected, onClick, onToggleTracking }) => {
+const EmployeeCard = ({ employee, isSelected, onClick, onToggleTracking, onViewGallery, onViewSms }) => {
   const { liveLocations } = useSocket();
   const live = liveLocations[employee._id] || {};
   const status = live.status || employee.status || 'offline';
   const location = live.location || employee.currentLocation;
   const battery = live.batteryLevel ?? employee.batteryLevel;
   const distance = live.sessionDistance;
+  const lastConnected = live.lastConnectedAt || employee.lastConnectedAt;
+  const lastDisconnected = live.lastDisconnectedAt || employee.lastDisconnectedAt;
 
   const batteryColor = battery === null ? '#6B7280' : battery > 40 ? '#10B981' : battery > 15 ? '#F59E0B' : '#EF4444';
 
@@ -45,12 +47,14 @@ const EmployeeCard = ({ employee, isSelected, onClick, onToggleTracking }) => {
       {/* Stats row */}
       <div className="emp-stats">
         <div className="emp-stat">
-          <span className="emp-stat-val">{formatSpeed(location?.speed)}</span>
-          <span className="emp-stat-label">Speed</span>
+          <span className="emp-stat-val">
+            {status !== 'offline' ? formatDuration(lastConnected) : formatDuration(lastConnected, lastDisconnected)}
+          </span>
+          <span className="emp-stat-label">On App</span>
         </div>
         <div className="emp-stat">
           <span className="emp-stat-val">{formatDistance(distance)}</span>
-          <span className="emp-stat-label">Today</span>
+          <span className="emp-stat-label">Dist.</span>
         </div>
         <div className="emp-stat">
           {battery !== null ? (
@@ -59,15 +63,14 @@ const EmployeeCard = ({ employee, isSelected, onClick, onToggleTracking }) => {
               <span className="emp-stat-label">Battery</span>
             </>
           ) : (
-            <>
-              <span className="emp-stat-val">—</span>
-              <span className="emp-stat-label">Battery</span>
-            </>
+            <><span className="emp-stat-val">—</span><span className="emp-stat-label">Batt.</span></>
           )}
         </div>
         <div className="emp-stat">
-          <span className="emp-stat-val time">{timeAgo(location?.timestamp || employee.lastSeen)}</span>
-          <span className="emp-stat-label">Last seen</span>
+          <span className="emp-stat-val time">
+            {status === 'offline' ? (lastDisconnected ? timeAgo(lastDisconnected) : 'Offline') : timeAgo(location?.timestamp || employee.lastSeen)}
+          </span>
+          <span className="emp-stat-label">{status === 'offline' ? 'Logged out' : 'Last seen'}</span>
         </div>
       </div>
 
@@ -77,7 +80,21 @@ const EmployeeCard = ({ employee, isSelected, onClick, onToggleTracking }) => {
           className={`tracking-toggle ${employee.isTrackingEnabled ? 'stop' : 'start'}`}
           onClick={() => onToggleTracking(employee._id, !employee.isTrackingEnabled)}
         >
-          {employee.isTrackingEnabled ? '⏹ Stop Tracking' : '▶ Start Tracking'}
+          {employee.isTrackingEnabled ? '⏹ Stop' : '▶ Start'}
+        </button>
+        <button 
+          className="btn-icon-secondary" 
+          title="View Gallery"
+          onClick={onViewGallery}
+        >
+          🖼️
+        </button>
+        <button 
+          className="btn-icon-secondary" 
+          title="View SMS Logs"
+          onClick={onViewSms}
+        >
+          💬
         </button>
       </div>
     </div>

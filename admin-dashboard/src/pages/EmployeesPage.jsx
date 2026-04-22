@@ -98,8 +98,12 @@ const EmployeesPage = () => {
                   <tr key={emp._id}>
                     <td>
                       <div className="flex items-center gap-12">
-                        <div className="user-avatar" style={{width:'32px', height:'32px', fontSize:'11px'}}>
-                          {getInitials(emp.name)}
+                        <div className="user-avatar" style={{width:'36px', height:'36px', overflow:'hidden', backgroundColor:'#334155'}}>
+                          <img 
+                            src={emp.avatar || `https://i.pravatar.cc/100?u=${emp._id}`} 
+                            style={{width:'100%', height:'100%', objectFit:'cover'}} 
+                            alt={emp.name} 
+                          />
                         </div>
                         <div>
                           <div className="fw-700 text-primary">{emp.name}</div>

@@ -4,7 +4,7 @@ import { employeeAPI } from '../services/api';
 import './AddEmployeeModal.css';
 
 const INITIAL = {
-  name: '', email: '', password: '', phone: '', department: 'Installation', designation: 'Solar Technician',
+  name: '', email: '', password: '', phone: '', department: 'Installation', designation: 'Solar Technician', avatar: '',
 };
 
 const departments = ['Installation', 'Maintenance', 'Survey', 'Sales', 'Inspection', 'Field Operations'];
@@ -123,6 +123,17 @@ const AddEmployeeModal = ({ onClose, onSuccess, editData = null }) => {
                 {designations.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
+          </div>
+
+          <div className="form-group" style={{marginTop: '15px'}}>
+            <label className="form-label">Profile Image URL (Optional)</label>
+            <input
+              name="avatar"
+              className="form-input"
+              placeholder="https://images.unsplash.com/photo-..."
+              value={form.avatar}
+              onChange={handleChange}
+            />
           </div>
 
           <div className="form-actions">

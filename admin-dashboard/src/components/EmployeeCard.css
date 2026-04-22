@@ -107,17 +107,41 @@
   letter-spacing: 0.5px;
 }
 
-.emp-card-footer {}
+.emp-card-footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 5px;
+}
 
 .tracking-toggle {
-  width: 100%;
+  flex: 1;
   padding: 8px;
   border-radius: var(--radius-sm);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.3px;
   transition: var(--transition);
   border: 1px solid transparent;
+}
+
+.btn-icon-secondary {
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-icon-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--accent);
 }
 
 .tracking-toggle.start {

@@ -61,15 +61,15 @@
 }
 
 /* ─── Center Map ────────────────────────────────────────────────────────── */
-.dashboard-map {
+.dashboard-map-container {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
 
-/* ─── Activity Log ──────────────────────────────────────────────────────── */
-.dashboard-activity {
+/* ─── Activity Log Overlay ────────────────────────────────────────────────── */
+.dashboard-status-overlay {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);

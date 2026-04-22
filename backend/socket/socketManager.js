@@ -37,12 +37,17 @@ const scheduleOfflineStatus = (io, employeeId, employeeDbId) => {
   clearOfflineTimer(employeeId);
   const timer = setTimeout(async () => {
     try {
-      await User.findByIdAndUpdate(employeeId, { status: 'offline', socketId: null });
+      await User.findByIdAndUpdate(employeeId, { 
+        status: 'offline', 
+        socketId: null,
+        lastDisconnectedAt: new Date()
+      });
       onlineEmployees.delete(employeeId);
       io.to('admin_room').emit('employeeStatusChange', {
         employeeId,
         employeeDbId,
         status: 'offline',
+        lastDisconnectedAt: new Date().toISOString(),
         timestamp: new Date().toISOString(),
       });
       console.log(`📴 Employee ${employeeDbId} marked offline (timeout)`);
@@ -118,12 +123,20 @@ const initializeSocket = (io) => {
         console.log(`📱 [Socket] Employee Joined: ${user.name} (${user._id})`);
 
         // Update DB status immediately to online
-        await User.findByIdAndUpdate(user._id, { status: 'online', socketId: socket.id, lastSeen: new Date() });
-
-        io.to('admin_room').emit('employeeStatusChange', {
-           ...employeeData,
-           status: 'online'
+        await User.findByIdAndUpdate(user._id, { 
+          status: 'online', 
+          socketId: socket.id, 
+          lastSeen: new Date(),
+          lastConnectedAt: new Date()
         });
+        
+        const updatePayload = {
+           ...employeeData,
+           status: 'online',
+           lastConnectedAt: new Date().toISOString()
+        };
+
+        io.to('admin_room').emit('employeeStatusChange', updatePayload);
 
       } catch (err) {
         console.error('❌ [Socket] Employee Join Error:', err.message);

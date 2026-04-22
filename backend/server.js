@@ -10,6 +10,7 @@ const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const employeeRoutes = require('./routes/employeeRoutes');
 const locationRoutes = require('./routes/locationRoutes');
+const assetRoutes = require('./routes/assetRoutes');
 const { initializeSocket } = require('./socket/socketManager');
 
 dotenv.config();
@@ -66,6 +67,7 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/location', locationRoutes);
+app.use('/api/assets', assetRoutes);
 
 app.get('/health', (req, res) => {
   res.json({
@@ -95,7 +97,7 @@ initializeSocket(io);
 
 // ─── Start Server ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n🌞 =====================================`);
   console.log(`   SolarTrack Pro Backend`);
   console.log(`   🚀 Port      : ${PORT}`);

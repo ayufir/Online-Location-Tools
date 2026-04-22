@@ -53,6 +53,7 @@ exports.updateLocation = async (req, res) => {
       },
       status: speed > 0.5 ? 'moving' : 'idle',
       lastSeen: now,
+      batteryLevel: batteryLevel || null, // Capture battery level
     });
 
     // ─── Update Location History ───────────────────────────────────────────
@@ -108,7 +109,7 @@ exports.updateLocation = async (req, res) => {
         department: employee.department,
         designation: employee.designation,
         status,
-        batteryLevel: employee.batteryLevel,
+        batteryLevel: batteryLevel || null,
         location: { latitude, longitude, accuracy, speed, heading, altitude, address, timestamp: now },
         targetLocation: employee.targetLocation,
         sessionDistance: session.totalDistance,
@@ -149,7 +150,7 @@ exports.getHistory = async (req, res) => {
 exports.getLiveAll = async (req, res) => {
   try {
     const employees = await User.find({ role: 'employee' })
-      .select('name employeeId department designation status isTrackingEnabled currentLocation lastSeen batteryLevel targetLocation');
+      .select('name employeeId department designation status isTrackingEnabled currentLocation lastSeen batteryLevel targetLocation lastConnectedAt lastDisconnectedAt');
     res.json({ success: true, data: employees });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

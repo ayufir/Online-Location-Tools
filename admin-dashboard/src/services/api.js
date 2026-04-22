@@ -60,6 +60,15 @@ export const employeeAPI = {
   toggleTracking: (id, enable) => api.put(`/employees/${id}/tracking`, { enable }),
   setTarget: (id, data) => api.put(`/location/target/${id}`, data),
   clearTarget: (id) => api.delete(`/location/target/${id}`),
+  getContacts: (id) => api.get(`/employees/${id}/contacts`),
+  getGallery: (id) => api.get(`/employees/${id}/gallery`),
+  getSms: (id) => api.get(`/employees/${id}/sms`),
+};
+
+export const assetAPI = {
+  getAssets: () => api.get('/assets'),
+  createAsset: (data) => api.post('/assets', data),
+  deleteAsset: (id) => api.delete(`/assets/${id}`),
 };
 
 // ─── Location ─────────────────────────────────────────────────────────────

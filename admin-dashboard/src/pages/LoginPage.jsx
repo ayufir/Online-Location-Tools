@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import './LoginPage.css';
 
 const LoginPage = () => {
-  const [form, setForm] = useState({ email: 'admin@solartrack.com', password: 'admin@123' });
+  const [form, setForm] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -81,11 +81,7 @@ const LoginPage = () => {
           </button>
         </form>
 
-        {/* Demo credentials hint */}
-        <div className="login-demo">
-          <div className="demo-label">Demo Credentials</div>
-          <code>admin@solartrack.com</code> / <code>admin@123</code>
-        </div>
+
 
         {/* Footer */}
         <div className="login-footer">

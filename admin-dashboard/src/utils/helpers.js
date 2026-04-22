@@ -95,6 +95,20 @@ export const truncate = (str, max = 30) => {
 };
 
 /**
+ * Format duration between two timestamps
+ */
+export const formatDuration = (start, end = new Date()) => {
+  if (!start) return '--';
+  const diff = new Date(end).getTime() - new Date(start).getTime();
+  if (diff < 0) return '0m';
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return `${hours}h ${remainingMinutes}m`;
+};
+
+/**
  * Battery icon string based on level
  */
 export const batteryIcon = (level) => {
