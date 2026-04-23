@@ -5,7 +5,7 @@ import FleetMap from '../components/FleetMap';
 import EmployeeCard from '../components/EmployeeCard';
 import ViewGalleryModal from '../components/ViewGalleryModal';
 import ViewSmsModal from '../components/ViewSmsModal';
-import ActivityFeed from '../components/ActivityFeed';
+import TaskProofModal from '../components/TaskProofModal';
 import toast from 'react-hot-toast';
 import './DashboardPage.css';
 
@@ -14,29 +14,25 @@ const DashboardPage = () => {
   const [selectedId, setSelectedId] = useState(null);
   const [viewGalleryEmp, setViewGalleryEmp] = useState(null);
   const [viewSmsEmp, setViewSmsEmp] = useState(null);
+  const [viewTaskProof, setViewTaskProof] = useState(null);
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [assigningToId, setAssigningToId] = useState(null); // ID of employee currently being assigned a task
-  const { liveLocations } = useSocket();
+  const [assigningToId, setAssigningToId] = useState(null);
+  const { connected, liveLocations } = useSocket();
   const prevLiveIds = React.useRef(new Set());
   const lastRefresh = React.useRef(0);
 
   useEffect(() => {
     fetchEmployees();
-    // Refresh employee list every 30 seconds to catch new additions
     const interval = setInterval(fetchEmployees, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  // ─── Auto-focus and Dynamically Add New Employees ────────────────────────
   useEffect(() => {
     const currentIds = Object.keys(liveLocations);
-    
-    // Use a timestamp to throttle detection-based refreshes
     const hasUnknown = currentIds.some(id => !employees.find(e => e._id === id));
     
     if (hasUnknown && (Date.now() - lastRefresh.current > 15000)) {
-      console.log("📡 New live unit detected. Throttled refresh...");
       lastRefresh.current = Date.now();
       fetchEmployees();
     }
@@ -48,7 +44,7 @@ const DashboardPage = () => {
     }
     
     prevLiveIds.current = new Set(currentIds);
-  }, [liveLocations, selectedId]); // Removed 'employees' from deps to prevent loop
+  }, [liveLocations, selectedId, employees]);
 
   const fetchEmployees = async () => {
     try {
@@ -78,7 +74,6 @@ const DashboardPage = () => {
     }
   };
 
-  // Merge live status/location into employees list for the sidebar
   const displayEmployees = (employees || []).map((emp) => {
     const live = liveLocations?.[emp._id];
     if (!live) return emp;
@@ -91,7 +86,6 @@ const DashboardPage = () => {
     };
   });
 
-  // Stats
   const stats = {
     total: (employees || []).length,
     online: (displayEmployees || []).filter((e) => (e.status || 'offline') !== 'offline').length,
@@ -110,10 +104,7 @@ const DashboardPage = () => {
 
   const handleSetTarget = async (latlng) => {
     const id = assigningToId;
-    if (!id) {
-       // Optional: Fallback to selectedId or toast
-       return;
-    }
+    if (!id) return;
 
     try {
       const label = window.prompt('Enter mission label:', 'Assigned Task');
@@ -128,7 +119,7 @@ const DashboardPage = () => {
       const newTasks = Array.isArray(res.data) ? res.data : (res.data.tasks || []);
       setEmployees(prev => prev.map(e => e._id === id ? { ...e, tasks: newTasks } : e));
       toast.success(`Mission assigned to ${displayEmployees.find(e => e._id === id)?.name}`);
-      setAssigningToId(null); // Exit assignment mode
+      setAssigningToId(null);
     } catch (err) {
       toast.error('Failed to set destination.');
     }
@@ -166,17 +157,17 @@ const DashboardPage = () => {
   };
 
   return (
-    <div className="dashboard-page glass-effect">
-      {/* ── Left Sidebar: Fleet List ── */}
-      <div className="dashboard-fleet glass-sidebar">
-        {/* ... existing header ... */}
+    <div className="dashboard-page">
+      <div className="dashboard-fleet">
         <div className="fleet-header">
           <div className="fleet-title-row">
             <div>
-              <h2 className="premium-title">FIELD LOGISTICS</h2>
+              <h2 className="card-title">FIELD LOGISTICS</h2>
               <p className="text-xs text-muted">LIVE FLEET OVERVIEW</p>
             </div>
-            <div className="badge badge-online glow-online">{stats.online} ACTIVE</div>
+            <div className={`badge ${connected ? 'badge-online' : 'badge-offline'}`}>
+              {connected ? 'LIVE' : 'SYNCING'}
+            </div>
           </div>
 
           <div className="fleet-stats-grid">
@@ -185,12 +176,12 @@ const DashboardPage = () => {
               <span className="f-label">UNITS</span>
             </div>
             <div className="f-stat">
-              <span className="f-val text-moving">{stats.moving}</span>
-              <span className="f-label">MOBILE</span>
+              <span className="f-val online">{stats.online}</span>
+              <span className="f-label">ACTIVE</span>
             </div>
             <div className="f-stat">
-              <span className="f-val text-accent">{stats.idle}</span>
-              <span className="f-label">IDLE</span>
+              <span className="f-val moving">{stats.moving}</span>
+              <span className="f-label">MOBILE</span>
             </div>
           </div>
         </div>
@@ -213,13 +204,13 @@ const DashboardPage = () => {
                 onToggleTracking={handleToggleTracking}
                 isAssigning={assigningToId === emp._id}
                 onAssignTask={(id) => setAssigningToId(id === assigningToId ? null : id)}
+                onViewTaskProof={(task) => setViewTaskProof({ task, employeeId: emp._id, employeeName: emp.name })}
               />
             ))
           )}
         </div>
       </div>
 
-      {/* ── Center: Map ── */}
       <div className="dashboard-map-container">
         <FleetMap
           employees={displayEmployees}
@@ -234,18 +225,18 @@ const DashboardPage = () => {
         />
       </div>
 
-      {/* ── Gallery Modal ── */}
       {viewGalleryEmp && (
-        <ViewGalleryModal 
-          employee={viewGalleryEmp} 
-          onClose={() => setViewGalleryEmp(null)} 
-        />
+        <ViewGalleryModal employee={viewGalleryEmp} onClose={() => setViewGalleryEmp(null)} />
       )}
-      {/* ── SMS Modal ── */}
       {viewSmsEmp && (
-        <ViewSmsModal 
-          employee={viewSmsEmp} 
-          onClose={() => setViewSmsEmp(null)} 
+        <ViewSmsModal employee={viewSmsEmp} onClose={() => setViewSmsEmp(null)} />
+      )}
+      {viewTaskProof && (
+        <TaskProofModal 
+          task={viewTaskProof.task} 
+          employeeId={viewTaskProof.employeeId}
+          employeeName={viewTaskProof.employeeName} 
+          onClose={() => setViewTaskProof(null)} 
         />
       )}
     </div>

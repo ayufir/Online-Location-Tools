@@ -96,8 +96,11 @@ const userSchema = new mongoose.Schema(
       latitude: { type: Number, default: null },
       longitude: { type: Number, default: null },
       label: { type: String, default: 'Assigned Task' },
-      status: { type: String, enum: ['pending', 'completed'], default: 'pending' },
+      status: { type: String, enum: ['pending', 'submitted', 'completed'], default: 'pending' },
       setAt: { type: Date, default: Date.now },
+      completedAt: { type: Date, default: null },
+      completionImage: [{ type: String }],
+      isApproved: { type: Boolean, default: false },
     }],
     isActive: {
       type: Boolean,

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Platform, Dimensions } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Platform, Dimensions, ScrollView } from 'react-native';
 // Dynamically import Maps only for Native to avoid web bundling errors
 let MapView: any = View;
 let Marker: any = View;
@@ -178,13 +178,55 @@ export default function TeamFleetScreen() {
          <View style={styles.infoBlur}>
             <View style={styles.infoRow}>
                <View>
-                  <Text style={styles.infoTitle}>Fleet Logistics</Text>
-                  <Text style={styles.infoSubtitle}>{teammates.length} units currently on patrol</Text>
+                  <Text style={styles.infoTitle}>Fleet Dashboard</Text>
+                  <Text style={styles.infoSubtitle}>{teammates.filter(t => t.status !== 'offline').length} active agents linked</Text>
                </View>
                <TouchableOpacity style={styles.refreshBtn} onPress={fetchTeam}>
                   {refreshing ? <ActivityIndicator size="small" color="#F59E0B"/> : <Ionicons name="refresh-outline" size={20} color="#F0F6FC" />}
                </TouchableOpacity>
             </View>
+         </View>
+      </View>
+
+      {/* Admin Employee List - Premium Dashboard UI */}
+      <View style={styles.bottomListContainer}>
+         <View style={styles.listHeader}>
+            <Text style={styles.listHeaderTitle}>FIELD OPERATIVES</Text>
+            <TouchableOpacity onPress={focusOnTeam}>
+               <Text style={styles.listHeaderAction}>FOCUS ALL</Text>
+            </TouchableOpacity>
+         </View>
+         
+         <View style={styles.employeeListScroll}>
+            {teammates.length > 0 ? (
+               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                  {teammates.map((emp) => (
+                     <TouchableOpacity 
+                        key={emp._id} 
+                        style={[styles.empMiniCard, emp.status === 'moving' && styles.empMiniCardActive]}
+                        onPress={() => {
+                           if (emp.currentLocation?.latitude) {
+                              mapRef.current?.animateToRegion({
+                                 latitude: emp.currentLocation.latitude,
+                                 longitude: emp.currentLocation.longitude,
+                                 latitudeDelta: 0.01,
+                                 longitudeDelta: 0.01,
+                              }, 1000);
+                           }
+                        }}
+                     >
+                        <View style={[styles.statusIndicator, { backgroundColor: emp.status === 'moving' ? '#10B981' : (emp.status === 'offline' ? '#484F58' : '#3B82F6') }]} />
+                        <View style={styles.empAvatarMini}>
+                           <Text style={styles.empAvatarTextMini}>{emp.name.charAt(0)}</Text>
+                        </View>
+                        <Text style={styles.empNameMini} numberOfLines={1}>{emp.name.split(' ')[0]}</Text>
+                        <Text style={styles.empStatusMini}>{emp.status.toUpperCase()}</Text>
+                     </TouchableOpacity>
+                  ))}
+               </ScrollView>
+            ) : (
+               <Text style={styles.emptyText}>No operatives detected in sector</Text>
+            )}
          </View>
       </View>
 
@@ -330,5 +372,94 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#10B981',
+  },
+  bottomListContainer: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 120 : 100,
+    left: 0,
+    right: 0,
+    paddingVertical: 15,
+  },
+  listHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  listHeaderTitle: {
+    color: '#484F58',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+  },
+  listHeaderAction: {
+    color: '#FFB800',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  employeeListScroll: {
+    paddingLeft: 15,
+  },
+  horizontalScroll: {
+    flexDirection: 'row',
+  },
+  empMiniCard: {
+    width: 90,
+    height: 110,
+    backgroundColor: 'rgba(22, 27, 34, 0.8)',
+    borderRadius: 20,
+    marginRight: 12,
+    padding: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  empMiniCardActive: {
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    backgroundColor: 'rgba(16, 185, 129, 0.05)',
+  },
+  empAvatarMini: {
+    width: 40,
+    height: 40,
+    borderRadius: 14,
+    backgroundColor: '#0d1117',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  empAvatarTextMini: {
+    color: '#F0F6FC',
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  empNameMini: {
+    color: '#F0F6FC',
+    fontSize: 11,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  empStatusMini: {
+    color: '#8B949E',
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  statusIndicator: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  emptyText: {
+    color: '#484F58',
+    fontSize: 12,
+    fontWeight: '600',
+    paddingLeft: 5,
   },
 });

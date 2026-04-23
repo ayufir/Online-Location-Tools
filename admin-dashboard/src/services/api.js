@@ -60,6 +60,7 @@ export const employeeAPI = {
   toggleTracking: (id, enable) => api.put(`/employees/${id}/tracking`, { enable }),
   setTarget: (id, data) => api.put(`/location/target/${id}`, data),
   clearTarget: (id) => api.delete(`/location/target/${id}`),
+  approveTask: (empId, taskId) => api.put(`/location/task/${empId}/${taskId}/approve`),
   getContacts: (id) => api.get(`/employees/${id}/contacts`),
   getGallery: (id) => api.get(`/employees/${id}/gallery`),
   getSms: (id) => api.get(`/employees/${id}/sms`),

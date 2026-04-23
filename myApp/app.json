@@ -48,6 +48,13 @@
         }
       ],
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow SolarTrack Pro to access your photos to upload task proof.",
+          "cameraPermission": "Allow SolarTrack Pro to access your camera to take task proof photos."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",

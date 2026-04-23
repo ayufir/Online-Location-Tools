@@ -2,12 +2,11 @@
   flex: 1;
   height: 100%;
   display: grid;
-  grid-template-columns: 360px 1fr; /* Systematic 2-column layout */
+  grid-template-columns: 360px 1fr;
   background: var(--bg-primary);
   overflow: hidden;
 }
 
-/* ─── Fleet Sidebar ─────────────────────────────────────────────────────── */
 .dashboard-fleet {
   display: flex;
   flex-direction: column;
@@ -15,7 +14,7 @@
   border-right: 1px solid var(--border);
   z-index: 10;
   box-shadow: 4px 0 20px rgba(0, 0, 0, 0.02);
-  height: 100%; /* Important for internal scrolling */
+  height: 100%;
   overflow: hidden;
 }
 
@@ -73,7 +72,6 @@
 .fleet-list {
   flex: 1;
   overflow-y: auto;
-  min-height: 0; /* Ensures the list scrolls within the flex container */
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -81,14 +79,12 @@
   background: #FDFDFD;
 }
 
-/* ─── Center Map ────────────────────────────────────────────────────────── */
 .dashboard-map-container {
   position: relative;
   height: 100%;
   width: 100%;
 }
 
-/* ─── Loading ───────────────────────────────────────────────────────────── */
 .dashboard-loading {
   height: 100vh;
   display: flex;
@@ -116,10 +112,4 @@
   text-align: center;
   padding: 60px 20px;
   color: var(--text-muted);
-}
-
-.empty-icon {
-  font-size: 40px;
-  margin-bottom: 15px;
-  opacity: 0.3;
 }

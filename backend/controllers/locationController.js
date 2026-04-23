@@ -258,3 +258,120 @@ exports.clearTargetLocation = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+// ─── PUT /api/location/task/:taskId/complete ──────────────────────────────
+// Employee: Mark a task as completed (submitted for approval) and upload proof
+exports.completeTask = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const employeeId = req.user._id;
+
+    console.log(`[CompleteTask] Processing taskId: ${taskId}`);
+    console.log(`[CompleteTask] Files received:`, req.files ? req.files.length : 0);
+    
+    if (!req.files || req.files.length === 0) {
+      console.log('[Upload] Error: No files reached the controller.');
+      return res.status(400).json({ success: false, message: 'No images found in request. Please try selecting different photos.' });
+    }
+
+    const imageUrls = req.files.map(file => `/uploads/tasks/${file.filename}`);
+    console.log(`[CompleteTask] Generated URLs:`, imageUrls);
+
+    const employee = await User.findOneAndUpdate(
+      { _id: employeeId, 'tasks._id': taskId },
+      {
+        $set: {
+          'tasks.$.status': 'submitted',
+          'tasks.$.completedAt': new Date(),
+          'tasks.$.completionImage': imageUrls
+        }
+      },
+      { new: true }
+    );
+
+    if (!employee) {
+      return res.status(404).json({ success: false, message: 'Task or Employee not found.' });
+    }
+
+    // Broadcast update via Socket.io
+    const io = req.io;
+    if (io) {
+      io.to('admin_room').emit('employeeStatusChange', {
+        employeeId: employee._id.toString(),
+        tasks: employee.tasks,
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Task submitted for approval.', 
+      data: employee.tasks.find(t => t._id.toString() === taskId) 
+    });
+  } catch (err) {
+    console.error('Complete task error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// ─── PUT /api/location/task/:employeeId/:taskId/approve ───────────────────
+// Admin: Approve a submitted task
+exports.approveTask = async (req, res) => {
+  try {
+    const { employeeId, taskId } = req.params;
+    console.log(`[ApproveTask] Request - Emp: ${employeeId}, Task: ${taskId}`);
+
+    const employee = await User.findOneAndUpdate(
+      { _id: employeeId, 'tasks._id': taskId },
+      {
+        $set: {
+          'tasks.$.status': 'completed',
+          'tasks.$.isApproved': true
+        }
+      },
+      { new: true }
+    );
+
+    if (!employee) {
+      console.log(`[ApproveTask] FAILED: No match for Emp: ${employeeId}, Task: ${taskId}`);
+      return res.status(404).json({ success: false, message: 'Task or Employee not found.' });
+    }
+
+    console.log(`[ApproveTask] SUCCESS: Approved task ${taskId} for ${employee.name}`);
+
+    // Broadcast update via Socket.io
+    const io = req.io;
+    if (io) {
+      // Notify Admin
+      io.to('admin_room').emit('employeeStatusChange', {
+        employeeId: employee._id.toString(),
+        tasks: employee.tasks,
+      });
+
+      // Specifically inform the employee
+      io.to(`employee_${employeeId}`).emit('target:update', {
+        employeeId: employee._id.toString(),
+        tasks: employee.tasks,
+      });
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Task approved and completed.', 
+      data: employee.tasks.find(t => t._id.toString() === taskId) 
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = {
+  updateLocation: exports.updateLocation,
+  getHistory: exports.getHistory,
+  getLiveAll: exports.getLiveAll,
+  getSession: exports.getSession,
+  getTeamLocations: exports.getTeamLocations,
+  setTargetLocation: exports.setTargetLocation,
+  clearTargetLocation: exports.clearTargetLocation,
+  completeTask: exports.completeTask,
+  approveTask: exports.approveTask
+};

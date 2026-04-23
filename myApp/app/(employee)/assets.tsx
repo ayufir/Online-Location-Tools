@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Platform, Dimensions, Alert, RefreshControl, ScrollView } from 'react-native';
-// Dynamically import Maps only for Native to avoid web bundling errors
 let MapView: any = View;
 let Marker: any = View;
 if (Platform.OS !== 'web') {
@@ -66,17 +65,19 @@ export default function SolarAssetsScreen() {
         });
       }
 
-      mapRef.current.fitToCoordinates(coords, {
-        edgePadding: { top: 100, right: 50, bottom: 200, left: 50 },
-        animated: true,
-      });
+      try {
+        mapRef.current.fitToCoordinates(coords, {
+          edgePadding: { top: 100, right: 50, bottom: 250, left: 50 },
+          animated: true,
+        });
+      } catch (e) {}
     }
   };
 
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#FFB800" />
+        <ActivityIndicator size="large" color="#007AFF" />
       </View>
     );
   }
@@ -86,7 +87,7 @@ export default function SolarAssetsScreen() {
       {/* Map Backdrop */}
       {Platform.OS === 'web' ? (
         <View style={styles.webFallback}>
-            <Ionicons name="sunny-outline" size={64} color="#30363D" />
+            <Ionicons name="sunny-outline" size={64} color="#CBD5E1" />
             <Text style={styles.webFallbackText}>Solar Infrastructure Map</Text>
         </View>
       ) : (
@@ -99,7 +100,7 @@ export default function SolarAssetsScreen() {
             latitudeDelta: 0.1,
             longitudeDelta: 0.1,
           }}
-          userInterfaceStyle="dark"
+          userInterfaceStyle="light"
         >
           {location && (
             <Marker
@@ -107,8 +108,8 @@ export default function SolarAssetsScreen() {
                 latitude: location.coords.latitude,
                 longitude: location.coords.longitude,
               }}
-              title="Your Location"
-              pinColor="#FFB800"
+              title="You"
+              pinColor="#007AFF"
             />
           )}
 
@@ -124,7 +125,7 @@ export default function SolarAssetsScreen() {
             >
                <View style={styles.assetMarker}>
                   <View style={styles.assetOrb}>
-                     <Text style={{ fontSize: 18 }}>☀️</Text>
+                     <Text style={{ fontSize: 16 }}>☀️</Text>
                   </View>
                   <View style={styles.assetLabel}>
                      <Text style={styles.assetText}>{asset.name}</Text>
@@ -140,22 +141,20 @@ export default function SolarAssetsScreen() {
          <View style={styles.headerBlur}>
             <View style={styles.headerRow}>
                <View>
-                  <Text style={styles.headerTitle}>Solar Grid</Text>
-                  <Text style={styles.headerSubtitle}>{assets.length} panels detected in your sector</Text>
+                  <Text style={styles.headerTitle}>SOLAR GRID</Text>
+                  <Text style={styles.headerSubtitle}>{assets.length} PANELS IN SECTOR</Text>
                </View>
                <TouchableOpacity style={styles.refreshBtn} onPress={fetchAssets}>
-                  {refreshing ? <ActivityIndicator size="small" color="#FFB800"/> : <Ionicons name="refresh-outline" size={20} color="#F0F6FC" />}
+                  {refreshing ? <ActivityIndicator size="small" color="#007AFF"/> : <Ionicons name="refresh" size={20} color="#007AFF" />}
                </TouchableOpacity>
             </View>
          </View>
       </View>
 
-      {/* Floating Action Buttons */}
-      <View style={styles.fabContainer}>
-         <TouchableOpacity style={styles.fab} onPress={focusAllAssets}>
-            <Ionicons name="layers-outline" size={24} color="#FFF" />
-         </TouchableOpacity>
-      </View>
+      {/* Floating Action Button */}
+      <TouchableOpacity style={styles.fab} onPress={focusAllAssets}>
+         <Ionicons name="layers" size={24} color="#FFF" />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -163,48 +162,48 @@ export default function SolarAssetsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#010409',
+    backgroundColor: '#F8FAFC',
   },
   center: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#010409',
+    backgroundColor: '#F8FAFC',
   },
   map: {
     ...StyleSheet.absoluteFillObject,
   },
   webFallback: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#010409',
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
   },
   webFallbackText: {
-    color: '#30363D',
+    color: '#94A3B8',
     marginTop: 15,
-    fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
   headerOverlay: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 60 : 40,
-    left: 15,
-    right: 15,
+    left: 20,
+    right: 20,
     zIndex: 10,
   },
   headerBlur: {
-    padding: 20,
-    borderRadius: 28,
-    backgroundColor: 'rgba(1, 4, 9, 0.95)',
+    padding: 18,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 184, 0, 0.15)',
-    shadowColor: '#FFB800',
+    borderColor: '#F1F5F9',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.05,
     shadowRadius: 20,
+    elevation: 5,
   },
   headerRow: {
     flexDirection: 'row',
@@ -212,77 +211,70 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    color: '#F0F6FC',
-    fontSize: 22,
+    color: '#0F172A',
+    fontSize: 18,
     fontWeight: '900',
-    letterSpacing: -0.5,
+    letterSpacing: 0.5,
   },
   headerSubtitle: {
-    color: '#FFB800',
+    color: '#007AFF',
     fontSize: 10,
-    fontWeight: '900',
-    marginTop: 4,
-    textTransform: 'uppercase',
+    fontWeight: '800',
+    marginTop: 2,
     letterSpacing: 1,
   },
   refreshBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 184, 0, 0.05)',
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 122, 255, 0.05)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 184, 0, 0.1)',
-  },
-  fabContainer: {
-    position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 130 : 110,
-    right: 15,
-    zIndex: 10,
   },
   fab: {
-    width: 60,
-    height: 60,
-    borderRadius: 22,
-    backgroundColor: '#FFB800',
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 120 : 100,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 20,
+    backgroundColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#FFB800',
+    shadowColor: '#007AFF',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.3,
     shadowRadius: 15,
-    elevation: 10,
+    elevation: 8,
   },
   assetMarker: {
     alignItems: 'center',
-    justifyContent: 'center',
   },
   assetOrb: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#010409',
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#FFF',
     borderWidth: 2,
-    borderColor: '#FFB800',
+    borderColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#FFB800',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
   },
   assetLabel: {
-    backgroundColor: 'rgba(1, 4, 9, 0.8)',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
-    marginTop: 5,
+    marginTop: 4,
     borderWidth: 1,
-    borderColor: 'rgba(255, 184, 0, 0.2)',
+    borderColor: '#E2E8F0',
   },
   assetText: {
-    color: '#F0F6FC',
+    color: '#0F172A',
     fontSize: 10,
     fontWeight: '800',
   },

@@ -3,7 +3,7 @@ import { timeAgo, formatDistance, formatSpeed, getInitials, truncate, formatDura
 import { useSocket } from '../context/SocketContext';
 import './EmployeeCard.css';
 
-const EmployeeCard = ({ employee, isSelected, onClick, onToggleTracking, onViewGallery, onViewSms, isAssigning, onAssignTask }) => {
+const EmployeeCard = ({ employee, isSelected, onClick, onToggleTracking, onViewGallery, onViewSms, isAssigning, onAssignTask, onViewTaskProof }) => {
   const { liveLocations } = useSocket();
   const live = liveLocations[employee._id] || {};
   const status = live.status || employee.status || 'offline';
@@ -52,8 +52,21 @@ const EmployeeCard = ({ employee, isSelected, onClick, onToggleTracking, onViewG
       {employee.tasks?.length > 0 && (
         <div className="emp-tasks-mini custom-scroll">
            {employee.tasks.map((t, i) => (
-             <div key={i} className="mini-task-item">
-                <span className="dot-green"></span> {truncate(t.label, 20)}
+             <div 
+              key={i} 
+              className={`mini-task-item ${t.status}`}
+              onClick={(e) => {
+                if (t.status === 'submitted' || t.status === 'completed') {
+                  e.stopPropagation();
+                  onViewTaskProof(t);
+                }
+              }}
+              style={{ cursor: (t.status === 'submitted' || t.status === 'completed') ? 'pointer' : 'default' }}
+             >
+                <span className={t.status === 'submitted' ? 'dot-orange' : (t.status === 'completed' ? 'dot-blue' : 'dot-green')}></span> 
+                <span className="mini-task-label">{truncate(t.label, 20)}</span>
+                {t.status === 'submitted' && <span className="task-verify-tag">VIEW PROOF</span>}
+                {t.status === 'completed' && <span className="task-done-tag">DONE</span>}
              </div>
            ))}
         </div>

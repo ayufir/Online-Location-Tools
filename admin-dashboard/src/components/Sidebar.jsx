@@ -83,7 +83,7 @@ const Sidebar = () => {
           </div>
         </div>
         <button className="btn btn-secondary btn-sm" onClick={logout} title="Logout">
-          ⇥
+          Logout
         </button>
       </div>
     </aside>

@@ -6,15 +6,24 @@ const {
   getSession, 
   getTeamLocations,
   setTargetLocation,
-  clearTargetLocation
+  clearTargetLocation,
+  completeTask,
+  approveTask
 } = require('../controllers/locationController');
 const { protect, requireAdmin } = require('../middleware/auth');
+const upload = require('../middleware/upload');
 
 // Mobile app pushes location (employee auth)
 router.post('/update', protect, updateLocation);
 
 // Employee context: view teammates
 router.get('/team', protect, getTeamLocations);
+
+// Employee context: Complete a task
+router.put('/task/:taskId/complete', protect, upload.any(), completeTask);
+
+// Admin-only: Approve a task
+router.put('/task/:employeeId/:taskId/approve', protect, requireAdmin, approveTask);
 
 // Admin-only: view all live locations
 router.get('/live', protect, requireAdmin, getLiveAll);
