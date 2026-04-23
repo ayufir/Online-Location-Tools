@@ -1,18 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Platform, Dimensions } from 'react-native';
-let MapView: any = View;
-let Marker: any = View;
-let Polyline: any = View;
-if (Platform.OS !== 'web') {
-  try {
-    const Maps = require('react-native-maps');
-    MapView = Maps.default || Maps;
-    Marker = Maps.Marker;
-    Polyline = Maps.Polyline;
-  } catch (e) {
-    console.warn('Maps not available');
-  }
-}
+import MapView, { Marker, Polyline } from '../../components/NativeMaps';
+
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../src/api/client';
@@ -164,7 +153,7 @@ export default function TeamFleetScreen() {
                   <View style={styles.teammateMarker}>
                       <View style={[styles.mDot, { backgroundColor: emp.status === 'moving' ? '#10B981' : '#94A3B8' }]} />
                       <View style={styles.mAvatar}>
-                        <Text style={styles.mAvatarText}>{emp.name?.charAt(0)}</Text>
+                        <Text style={styles.mAvatarText}>{(emp.name || 'U').charAt(0)}</Text>
                       </View>
                   </View>
                 </Marker>

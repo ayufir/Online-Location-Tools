@@ -6,20 +6,8 @@ import api from '../../src/api/client';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 
-// Dynamically import Maps only for Native
-let MapView: any = View;
-let Marker: any = View;
-let Polyline: any = View;
-if (Platform.OS !== 'web') {
-  try {
-    const Maps = require('react-native-maps');
-    MapView = Maps.default || Maps;
-    Marker = Maps.Marker;
-    Polyline = Maps.Polyline;
-  } catch (e) {
-    console.warn('Maps not available');
-  }
-}
+import MapView, { Marker, Polyline } from '../../components/NativeMaps';
+
 
 const { width } = Dimensions.get('window');
 

@@ -1,17 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Platform, Dimensions, Alert, RefreshControl, ScrollView } from 'react-native';
-// Dynamically import Maps only for Native to avoid web bundling errors
-let MapView: any = View;
-let Marker: any = View;
-if (Platform.OS !== 'web') {
-  try {
-    const Maps = require('react-native-maps');
-    MapView = Maps.default || Maps;
-    Marker = Maps.Marker;
-  } catch (e) {
-    console.warn('Maps not available');
-  }
-}
+import MapView, { Marker } from '../../components/NativeMaps';
+
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../src/api/client';

@@ -1,19 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Platform, Dimensions, ScrollView } from 'react-native';
-// Dynamically import Maps only for Native to avoid web bundling errors
-let MapView: any = View;
-let Marker: any = View;
-let Polyline: any = View;
-if (Platform.OS !== 'web') {
-  try {
-    const Maps = require('react-native-maps');
-    MapView = Maps.default || Maps;
-    Marker = Maps.Marker;
-    Polyline = Maps.Polyline;
-  } catch (e) {
-    console.warn('Maps not available');
-  }
-}
+import MapView, { Marker, Polyline } from '../../components/NativeMaps';
+
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import api from '../../src/api/client';
@@ -47,7 +35,9 @@ export default function TeamFleetScreen() {
     try {
       setRefreshing(true);
       const res = await api.get('/location/team');
-      setTeammates(res.data.data);
+      if (res.data?.success) {
+        setTeammates(res.data?.data || []);
+      }
     } catch (e) {
       console.error('[TeamMap] Fetch Error:', e);
     } finally {
@@ -136,7 +126,7 @@ export default function TeamFleetScreen() {
                    <View style={styles.teammateMarker}>
                       <View style={[styles.mDot, { backgroundColor: emp.status === 'moving' ? '#10B981' : '#8B949E' }]} />
                       <View style={styles.mAvatar}>
-                        <Text style={styles.mAvatarText}>{emp.name.charAt(0)}</Text>
+                        <Text style={styles.mAvatarText}>{(emp.name || 'U').charAt(0)}</Text>
                       </View>
                    </View>
                 </Marker>
@@ -217,9 +207,9 @@ export default function TeamFleetScreen() {
                      >
                         <View style={[styles.statusIndicator, { backgroundColor: emp.status === 'moving' ? '#10B981' : (emp.status === 'offline' ? '#484F58' : '#3B82F6') }]} />
                         <View style={styles.empAvatarMini}>
-                           <Text style={styles.empAvatarTextMini}>{emp.name.charAt(0)}</Text>
+                           <Text style={styles.empAvatarTextMini}>{(emp.name || 'U').charAt(0)}</Text>
                         </View>
-                        <Text style={styles.empNameMini} numberOfLines={1}>{emp.name.split(' ')[0]}</Text>
+                        <Text style={styles.empNameMini} numberOfLines={1}>{(emp.name || 'Agent').split(' ')[0]}</Text>
                         <Text style={styles.empStatusMini}>{emp.status.toUpperCase()}</Text>
                      </TouchableOpacity>
                   ))}

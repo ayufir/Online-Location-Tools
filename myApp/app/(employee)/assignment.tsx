@@ -1,18 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Platform, Dimensions, Linking, Alert, FlatList, RefreshControl } from 'react-native';
-let MapView: any = View;
-let Marker: any = View;
-let Polyline: any = View;
-if (Platform.OS !== 'web') {
-  try {
-    const Maps = require('react-native-maps');
-    MapView = Maps.default || Maps;
-    Marker = Maps.Marker;
-    Polyline = Maps.Polyline;
-  } catch (e) {
-    console.warn('Maps not available');
-  }
-}
+import MapView, { Marker, Polyline } from '../../components/NativeMaps';
+
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -61,7 +50,7 @@ export default function AssignmentScreen() {
       setRefreshing(true);
       const res = await api.get('/auth/me');
       if (res.data.success) {
-        const userTasks = res.data.data.tasks || [];
+        const userTasks = res.data?.data?.tasks || [];
         setTasks(userTasks);
         if (userTasks.length > 0) {
            // Find first pending task to select by default
